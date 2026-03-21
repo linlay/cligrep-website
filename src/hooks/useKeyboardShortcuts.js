@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { getQuickSlotIndex } from "../lib/commands.js";
 
 export function useKeyboardShortcuts({
   mode,
@@ -84,9 +85,10 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      if (event.altKey && ["1", "2", "3"].includes(event.key)) {
+      const quickSlotIndex = getQuickSlotIndex(event);
+      if (quickSlotIndex !== null) {
         event.preventDefault();
-        onApplyQuickSlot?.(parseInt(event.key, 10) - 1);
+        onApplyQuickSlot?.(quickSlotIndex);
         return;
       }
 

@@ -17,23 +17,32 @@ function HistoryEntry({ entry, activeUser }) {
 
 export default function OutputPanel({
   currentEntry,
-  historyEntries,
   activeUser,
-  historyExpanded,
-  onToggleHistory,
   emptyLabel,
-  historyLabel,
+  historyPositionLabel,
   durationLabel,
   modeLabel,
+  onShowOlder,
+  onShowNewer,
+  canShowOlder,
+  canShowNewer,
+  olderLabel,
+  newerLabel,
 }) {
   return (
     <section className="console-output-panel">
       <div className="console-output-header">
         <span>{durationLabel}</span>
         <span>{modeLabel}</span>
-        <button type="button" className="history-toggle-inline" onClick={onToggleHistory} aria-expanded={historyExpanded}>
-          {historyLabel}
-        </button>
+        <div className="history-nav-inline" aria-label={historyPositionLabel}>
+          <button type="button" className="history-nav-button" onClick={onShowOlder} disabled={!canShowOlder}>
+            {olderLabel}
+          </button>
+          <span className="history-position-label">{historyPositionLabel}</span>
+          <button type="button" className="history-nav-button" onClick={onShowNewer} disabled={!canShowNewer}>
+            {newerLabel}
+          </button>
+        </div>
       </div>
 
       <div className="current-output-panel" role="log" aria-live="polite">
@@ -43,14 +52,6 @@ export default function OutputPanel({
           <div className="current-output-empty">{emptyLabel}</div>
         )}
       </div>
-
-      {historyExpanded && historyEntries.length > 0 ? (
-        <div className="history-buffer" role="log" aria-live="polite">
-          {historyEntries.map((entry, index) => (
-            <HistoryEntry key={`${entry.command}-${index}`} entry={entry} activeUser={activeUser} />
-          ))}
-        </div>
-      ) : null}
     </section>
   );
 }

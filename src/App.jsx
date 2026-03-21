@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { request } from "./lib/api.js";
 import { MAX_HISTORY_BUFFER, TAB_COMPLETIONS, THEME_OPTIONS } from "./lib/constants.js";
-import { formatBuiltinExecution, formatExecution, isPrintableKey } from "./lib/commands.js";
+import { formatBuiltinExecution, formatExecution, getQuickSlotIndex, isPrintableKey } from "./lib/commands.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useFavorites } from "./hooks/useFavorites.js";
@@ -35,6 +35,10 @@ const DEFAULT_WEBSITE_COMMAND = normalizeCliView({
   createdAt: "2026-01-01T00:00:00Z",
 });
 
+const BRAND_TEXT = "CLI GREP";
+const BRAND_TYPING_INTERVAL_MS = 15000;
+const BRAND_TYPING_STEP_MS = 120;
+
 const BUILTIN_SHORTCUTS = {
   "builtin-grep": ["ripgrep", "python script", "mcp bridge"],
   "builtin-create": ['"make a todo cli"', '"build a markdown linter"', '"scan log files"'],
@@ -46,6 +50,10 @@ function createMeta(meta = {}) {
     durationMs: meta.durationMs ?? 0,
     modeLabel: meta.modeLabel ?? "WEBSITE",
   };
+}
+
+function isWebsiteBuiltinCli(cli) {
+  return cli?.environmentKind === "WEBSITE" && Object.hasOwn(BUILTIN_SHORTCUTS, cli.slug);
 }
 
 function App() {
@@ -71,24 +79,22 @@ function App() {
   const [inlineMode, setInlineMode] = useState("none");
   const [inlineValue, setInlineValue] = useState("");
   const [historyBuffer, setHistoryBuffer] = useState([]);
-  const [historyExpanded, setHistoryExpanded] = useState(false);
-  const [typedBrand, setTypedBrand] = useState("");
+  const [historyOffset, setHistoryOffset] = useState(0);
+  const [typedBrand, setTypedBrand] = useState(BRAND_TEXT);
+  const [isBrandTyping, setIsBrandTyping] = useState(false);
   const [infoPanel, setInfoPanel] = useState(null);
 
   const inputRef = useRef(null);
   const inlineRef = useRef(null);
+  const nextHistoryEntryId = useRef(0);
 
   const selectedSearchResult = searchResults[selectedResultIndex] ?? null;
   const selectedCommand = currentCli ?? activeBuiltinCli;
   const currentModeTheme = environmentTone(selectedCommand.environmentKind);
   const isFavoriteActive = currentCli ? isFavorite(currentCli.slug) : false;
   const currentOutputEntry = useMemo(
-    () => (historyBuffer.length > 0 ? historyBuffer[historyBuffer.length - 1] : null),
-    [historyBuffer],
-  );
-  const historyEntries = useMemo(
-    () => (historyBuffer.length > 1 ? historyBuffer.slice(0, -1).reverse() : []),
-    [historyBuffer],
+    () => historyBuffer[historyBuffer.length - 1 - historyOffset] ?? null,
+    [historyBuffer, historyOffset],
   );
   const shortcutCommands = useMemo(
     () => resolveShortcutCommands(selectedCommand, detail, hints),
@@ -103,11 +109,28 @@ function App() {
     ? t("console_duration", { ms: currentOutputEntry.meta.durationMs })
     : t("console_duration_idle");
   const outputModeLabel = currentOutputEntry?.meta?.modeLabel ?? selectedCommand.environmentKind;
+  const shouldShowOutputPanel = !isWebsiteBuiltinCli(selectedCommand);
+  const outputHistoryTotal = historyBuffer.length;
+  const outputHistoryPosition = outputHistoryTotal > 0 ? outputHistoryTotal - historyOffset : 0;
+  const maxHistoryOffset = Math.max(historyBuffer.length - 1, 0);
+  const canViewOlderOutput = historyOffset < outputHistoryTotal - 1;
+  const canViewNewerOutput = historyOffset > 0;
+
+  function buildHistoryEntry(command, output, showPrompt = true, meta = {}) {
+    nextHistoryEntryId.current += 1;
+    return {
+      id: nextHistoryEntryId.current,
+      prompt: showPrompt,
+      command,
+      output,
+      meta: createMeta(meta),
+    };
+  }
 
   function appendToBuffer(command, output, showPrompt = true, meta = {}) {
-    setHistoryExpanded(false);
+    setHistoryOffset(0);
     setHistoryBuffer((buf) => {
-      const next = [...buf, { prompt: showPrompt, command, output, meta: createMeta(meta) }];
+      const next = [...buf, buildHistoryEntry(command, output, showPrompt, meta)];
       if (next.length > MAX_HISTORY_BUFFER) {
         return next.slice(next.length - MAX_HISTORY_BUFFER);
       }
@@ -143,7 +166,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    setHistoryBuffer([{ prompt: false, command: "", output: getMotd(), meta: createMeta({ modeLabel: "WEBSITE" }) }]);
+    setHistoryBuffer([buildHistoryEntry("", getMotd(), false, { modeLabel: "WEBSITE" })]);
+    setHistoryOffset(0);
     setStatusMessage(t("status_ready"));
     void loadHomepage("favorites");
     if (!user) {
@@ -160,28 +184,52 @@ function App() {
   }, [inlineMode, mode, currentCli]);
 
   useEffect(() => {
-    const fullText = "CLI GREP";
-    let index = 0;
-    let deleting = false;
+    const timeoutIds = new Set();
 
-    const timer = window.setInterval(() => {
-      if (!deleting) {
+    const schedule = (callback, delay) => {
+      const timeoutId = window.setTimeout(() => {
+        timeoutIds.delete(timeoutId);
+        callback();
+      }, delay);
+      timeoutIds.add(timeoutId);
+    };
+
+    const runTypingCycle = () => {
+      let index = 0;
+      setTypedBrand("");
+      setIsBrandTyping(true);
+
+      const typeNext = () => {
         index += 1;
-        if (index >= fullText.length) {
-          deleting = true;
-          window.setTimeout(() => {}, 400);
-        }
-      } else {
-        index -= 1;
-        if (index <= 1) {
-          deleting = false;
-        }
-      }
-      setTypedBrand(fullText.slice(0, index));
-    }, 160);
+        setTypedBrand(BRAND_TEXT.slice(0, index));
 
-    return () => window.clearInterval(timer);
+        if (index < BRAND_TEXT.length) {
+          schedule(typeNext, BRAND_TYPING_STEP_MS);
+          return;
+        }
+
+        setIsBrandTyping(false);
+        schedule(runTypingCycle, BRAND_TYPING_INTERVAL_MS);
+      };
+
+      schedule(typeNext, BRAND_TYPING_STEP_MS);
+    };
+
+    setTypedBrand(BRAND_TEXT);
+    setIsBrandTyping(false);
+    schedule(runTypingCycle, BRAND_TYPING_INTERVAL_MS);
+
+    return () => {
+      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      timeoutIds.clear();
+    };
   }, []);
+
+  useEffect(() => {
+    setHistoryOffset((currentOffset) => {
+      return Math.min(currentOffset, maxHistoryOffset);
+    });
+  }, [maxHistoryOffset]);
 
   const applyLanguage = useCallback((nextLang, options = {}) => {
     const { record = false, command = `lang ${nextLang}` } = options;
@@ -253,6 +301,7 @@ function App() {
 
   const handleClearTerminal = useCallback(() => {
     setHistoryBuffer([]);
+    setHistoryOffset(0);
   }, []);
 
   const handleClearInput = useCallback(() => {
@@ -537,6 +586,7 @@ function App() {
   function selectCli(rawCli) {
     const cli = normalizeCliView(rawCli);
     setSelectedResultIndex(0);
+    setHistoryOffset(0);
 
     if (cli.environmentKind === "WEBSITE") {
       const nextBuiltin = { ...cli, promptCommands: resolveBuiltinShortcuts(cli.slug) };
@@ -547,7 +597,6 @@ function App() {
       setInputValue("");
       setHints(nextBuiltin.promptCommands);
       setStatusMessage(t("status_builtin_selected"));
-      appendToBuffer("", [cli.description, "", cli.helpText].join("\n"), false, { modeLabel: "WEBSITE" });
       return;
     }
 
@@ -568,6 +617,16 @@ function App() {
     if (nextValue) {
       setInputValue(nextValue);
     }
+  }
+
+  function showOlderOutput() {
+    setHistoryOffset((currentOffset) => (
+      currentOffset < maxHistoryOffset ? currentOffset + 1 : currentOffset
+    ));
+  }
+
+  function showNewerOutput() {
+    setHistoryOffset((currentOffset) => (currentOffset > 0 ? currentOffset - 1 : currentOffset));
   }
 
   function handleTabComplete() {
@@ -591,9 +650,10 @@ function App() {
   }
 
   function onInputKeyDown(event) {
-    if (event.altKey && ["1", "2", "3"].includes(event.key)) {
+    const quickSlotIndex = getQuickSlotIndex(event);
+    if (quickSlotIndex !== null) {
       event.preventDefault();
-      applyQuickSlot(parseInt(event.key, 10) - 1);
+      applyQuickSlot(quickSlotIndex);
       return;
     }
 
@@ -699,9 +759,12 @@ function App() {
       <div className="app-noise" />
 
       <header className="site-header">
-        <div className="site-brand">
-          <span className="brand-title">{typedBrand || "CLI GREP"}</span>
-          <span className="brand-caret" aria-hidden="true">_</span>
+        <div className="site-brand" aria-label={BRAND_TEXT}>
+          <span className="brand-title-shell">
+            <span className="brand-title-sizer" aria-hidden="true">{BRAND_TEXT}</span>
+            <span className="brand-title" aria-hidden="true">{typedBrand}</span>
+          </span>
+          {isBrandTyping ? <span className="brand-caret" aria-hidden="true">_</span> : null}
         </div>
 
         <div className="site-flat-actions">
@@ -737,7 +800,7 @@ function App() {
               <div className="console-shortcuts-list">
                 {shortcutCommands.slice(0, 3).map((hint, index) => (
                   <button key={hint} type="button" className="console-shortcut-chip" onClick={() => applyQuickSlot(index)}>
-                    ALT+{index + 1} {hint}
+                    {t("quick_slot_hint", { slot: index + 1, hint })}
                   </button>
                 ))}
               </div>
@@ -746,17 +809,25 @@ function App() {
 
             {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
 
-            <OutputPanel
-              currentEntry={currentOutputEntry}
-              historyEntries={historyEntries}
-              activeUser={activeUser}
-              historyExpanded={historyExpanded}
-              onToggleHistory={() => setHistoryExpanded((expanded) => !expanded)}
-              emptyLabel={t("output_empty")}
-              historyLabel={t("history_label", { count: historyEntries.length })}
-              durationLabel={outputDurationLabel}
-              modeLabel={outputModeLabel}
-            />
+            {shouldShowOutputPanel ? (
+              <OutputPanel
+                currentEntry={currentOutputEntry}
+                activeUser={activeUser}
+                emptyLabel={t("output_empty")}
+                historyPositionLabel={t("history_position", {
+                  current: outputHistoryPosition,
+                  total: outputHistoryTotal,
+                })}
+                durationLabel={outputDurationLabel}
+                modeLabel={outputModeLabel}
+                onShowOlder={showOlderOutput}
+                onShowNewer={showNewerOutput}
+                canShowOlder={canViewOlderOutput}
+                canShowNewer={canViewNewerOutput}
+                olderLabel={t("history_older")}
+                newerLabel={t("history_newer")}
+              />
+            ) : null}
           </div>
         </TerminalWindow>
 

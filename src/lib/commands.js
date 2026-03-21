@@ -1,5 +1,7 @@
 import { BUILTIN_PREFIXES } from "./constants.js";
 
+const QUICK_SLOT_CODES = ["Digit1", "Digit2", "Digit3"];
+
 export function normalizeBuiltinLine(trimmed) {
   const first = trimmed.split(/\s+/)[0];
   if (BUILTIN_PREFIXES.includes(first)) {
@@ -80,6 +82,16 @@ export function exampleTail(exampleLine, cliSlug) {
     return "";
   }
   return exampleLine.startsWith(`${cliSlug} `) ? exampleLine.slice(cliSlug.length + 1) : exampleLine;
+}
+
+export function getQuickSlotIndex(event) {
+  const index = QUICK_SLOT_CODES.indexOf(event.code);
+  if (index === -1) {
+    return null;
+  }
+
+  const isAltCombo = event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+  return isAltCombo ? index : null;
 }
 
 export function isPrintableKey(event) {
