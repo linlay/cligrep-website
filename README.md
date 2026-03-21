@@ -43,7 +43,8 @@ FRONTEND_PORT=11801
 说明：
 - `VITE_DEV_API_TARGET`：仅影响 `npm run dev` 的本地代理目标。
 - `FRONTEND_PORT`：用于 `compose.yml` 的宿主机端口映射，默认 `11801`。
-- 如确有特殊需要，也可在构建时显式注入 `VITE_API_BASE` 覆盖默认 `/api`，但标准部署路径不依赖它。
+- 标准部署路径不需要设置 `VITE_API_BASE`。
+- 当前调用方显式请求 `/api/...` 与 `/healthz`；只有未来新增“未带 `/api` 前缀的相对路径”时，才应让 `VITE_API_BASE` 参与前缀拼接。
 
 ## 4. 部署
 ### 容器部署
