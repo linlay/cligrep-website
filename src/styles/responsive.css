@@ -3,6 +3,10 @@
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .corner-controls {
+    margin-left: 0;
+  }
 }
 
 @media (max-width: 900px) {
@@ -18,12 +22,13 @@
     display: none;
   }
 
-  .cli-card {
-    grid-template-columns: auto 1fr;
+  .trending-list {
+    column-width: 280px;
   }
 
-  .card-stats {
-    grid-column: 2;
+  .cli-card-meta-grid,
+  .detail-metadata-grid {
+    grid-template-columns: 1fr;
   }
 
   .status-bar {
@@ -45,7 +50,9 @@
   }
 
   .trending-list {
-    grid-template-columns: 1fr;
+    column-width: auto;
+    column-count: 1;
+    padding: 14px 14px 0;
   }
 
   .prompt-line,
@@ -58,8 +65,15 @@
     flex-direction: column;
   }
 
-  .corner-select-wrap,
-  .corner-select {
+  .toolbar-menu,
+  .toolbar-trigger,
+  .toolbar-login-button {
+    width: 100%;
+  }
+
+  .toolbar-dropdown {
+    left: 0;
+    right: auto;
     width: 100%;
   }
 
@@ -85,5 +99,12 @@
   .empty-state {
     margin-left: 14px;
     margin-right: 14px;
+  }
+
+  .cli-card-topbar,
+  .cli-card-body,
+  .cli-card-footer {
+    padding-left: 14px;
+    padding-right: 14px;
   }
 }

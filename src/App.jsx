@@ -16,6 +16,8 @@ import TrendingGrid from "./components/TrendingGrid.jsx";
 import DetailPanel from "./components/DetailPanel.jsx";
 import StatusBar from "./components/StatusBar.jsx";
 import CommandPalette from "./components/CommandPalette.jsx";
+import ToolbarMenu from "./components/ToolbarMenu.jsx";
+import { normalizeCliView } from "./lib/cliView.js";
 
 const THEME_OPTIONS = ["system", "dark", "light"];
 
@@ -57,6 +59,10 @@ function App() {
   const historyEntries = useMemo(
     () => (historyBuffer.length > 1 ? historyBuffer.slice(0, -1).reverse() : []),
     [historyBuffer],
+  );
+  const trendingCards = useMemo(
+    () => trending.map((cli) => normalizeCliView(cli)),
+    [trending],
   );
 
   const shellMeta = useMemo(() => {
@@ -160,13 +166,21 @@ function App() {
     setMode("execution");
   }, [t]);
 
-  const handleToggleLanguage = useCallback(() => {
-    const nextLang = i18n.language === "en" ? "zh" : "en";
+  const applyLanguage = useCallback((nextLang, options = {}) => {
+    const { record = false, command = `lang ${nextLang}` } = options;
     i18n.changeLanguage(nextLang);
     localStorage.setItem("cligrep-lang", nextLang);
-    appendToBuffer(`lang ${nextLang}`, nextLang === "zh" ? "语言已切换为中文。" : "Language switched to English.");
-    setStatusMessage(nextLang === "zh" ? "语言已切换为中文。" : "Language switched to English.");
+    const message = nextLang === "zh" ? "语言已切换为中文。" : "Language switched to English.";
+    if (record) {
+      appendToBuffer(command, message);
+    }
+    setStatusMessage(message);
   }, [i18n]);
+
+  const handleToggleLanguage = useCallback(() => {
+    const nextLang = i18n.language === "en" ? "zh" : "en";
+    applyLanguage(nextLang, { record: true });
+  }, [applyLanguage, i18n.language]);
 
   const handleClearTerminal = useCallback(() => {
     setHistoryBuffer([]);
@@ -213,24 +227,6 @@ function App() {
     setStatusMessage(t("theme_switched", { theme: nextTheme }));
   }, [setTheme, t]);
 
-  const handleDisplayMenuChange = useCallback((event) => {
-    const value = event.target.value;
-    if (!value) return;
-
-    if (value.startsWith("theme:")) {
-      handleThemeSelect(value.slice("theme:".length));
-    }
-
-    if (value.startsWith("lang:")) {
-      const nextLang = value.slice("lang:".length);
-      i18n.changeLanguage(nextLang);
-      localStorage.setItem("cligrep-lang", nextLang);
-      setStatusMessage(nextLang === "zh" ? "语言已切换为中文。" : "Language switched to English.");
-    }
-
-    event.target.value = "";
-  }, [handleThemeSelect, i18n]);
-
   const handleHeaderLogout = useCallback(async () => {
     try {
       const anonymousUser = await logout();
@@ -242,20 +238,38 @@ function App() {
     }
   }, [logout, t]);
 
-  const handleSessionMenuChange = useCallback((event) => {
-    const value = event.target.value;
-    if (!value) return;
+  const themeMenuItems = useMemo(
+    () => THEME_OPTIONS.map((option) => ({
+      id: option,
+      label: t(`theme_option_${option}`),
+      active: theme === option,
+      onSelect: () => handleThemeSelect(option),
+    })),
+    [handleThemeSelect, t, theme],
+  );
 
-    if (value === "login") {
-      startLoginPrompt();
-    }
+  const languageMenuItems = useMemo(
+    () => ["en", "zh"].map((option) => ({
+      id: option,
+      label: t(`lang_option_${option}`),
+      active: i18n.language === option,
+      onSelect: () => applyLanguage(option),
+    })),
+    [applyLanguage, i18n.language, t],
+  );
 
-    if (value === "logout") {
-      void handleHeaderLogout();
-    }
-
-    event.target.value = "";
-  }, [handleHeaderLogout]);
+  const sessionMenuItems = useMemo(
+    () => [{
+      id: "logout",
+      label: t("session_action_logout"),
+      active: false,
+      role: "menuitem",
+      onSelect: () => {
+        void handleHeaderLogout();
+      },
+    }],
+    [handleHeaderLogout, t],
+  );
 
   useKeyboardShortcuts({
     mode,
@@ -437,11 +451,7 @@ function App() {
     if (cmd === "lang") {
       const arg = parts[1]?.toLowerCase();
       if (["en", "zh"].includes(arg)) {
-        i18n.changeLanguage(arg);
-        localStorage.setItem("cligrep-lang", arg);
-        const msg = arg === "zh" ? "语言已切换为中文。" : "Language switched to English.";
-        appendToBuffer(trimmed, msg);
-        setStatusMessage(msg);
+        applyLanguage(arg, { record: true, command: trimmed });
         return true;
       }
     }
@@ -677,35 +687,31 @@ function App() {
         </div>
 
         <div className="corner-controls">
-          <label className="corner-select-wrap">
-            <span>{t("display_menu_label")}</span>
-            <select defaultValue="" onChange={handleDisplayMenuChange} className="corner-select">
-              <option value="" disabled>{t("display_menu_default")}</option>
-              <optgroup label={t("display_menu_theme_group")}>
-                {THEME_OPTIONS.map((option) => (
-                  <option key={option} value={`theme:${option}`}>
-                    {t(`theme_option_${option}`)}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label={t("display_menu_lang_group")}>
-                <option value="lang:en">{t("lang_option_en")}</option>
-                <option value="lang:zh">{t("lang_option_zh")}</option>
-              </optgroup>
-            </select>
-          </label>
+          <ToolbarMenu
+            label={t("toolbar_theme")}
+            value={t(`theme_value_${theme}`)}
+            items={themeMenuItems}
+          />
 
-          <label className="corner-select-wrap">
-            <span>{isAnonymous ? t("session_menu_guest") : activeUser.username}</span>
-            <select defaultValue="" onChange={handleSessionMenuChange} className="corner-select">
-              <option value="" disabled>{t("session_menu_default")}</option>
-              {isAnonymous ? (
-                <option value="login">{t("session_action_login")}</option>
-              ) : (
-                <option value="logout">{t("session_action_logout")}</option>
-              )}
-            </select>
-          </label>
+          <ToolbarMenu
+            label={t("toolbar_language")}
+            value={t(`lang_value_${i18n.language}`)}
+            items={languageMenuItems}
+          />
+
+          {isAnonymous ? (
+            <button type="button" className="toolbar-login-button" onClick={startLoginPrompt}>
+              <span>{t("session_action_login")}</span>
+              <span>{t("session_menu_guest")}</span>
+            </button>
+          ) : (
+            <ToolbarMenu
+              label={t("toolbar_session")}
+              value={activeUser.username}
+              items={sessionMenuItems}
+              tone="accent"
+            />
+          )}
         </div>
       </header>
 
@@ -715,7 +721,7 @@ function App() {
             <TerminalWindow
               className="home-terminal-window"
               title={t("home_terminal_title")}
-              badge="bash"
+              badge="BUILTIN"
               badgeTheme="builtin"
             >
               <div className="terminal-body home-terminal-body">
@@ -730,7 +736,7 @@ function App() {
               </div>
             </TerminalWindow>
 
-            <TrendingGrid trending={trending} onSelectCli={selectCli} />
+            <TrendingGrid trending={trendingCards} onSelectCli={selectCli} />
           </>
         ) : (
           <section className="workbench-stage">
