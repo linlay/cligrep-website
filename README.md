@@ -58,6 +58,7 @@ docker compose -f compose.yml up -d --build
 
 容器部署说明：
 - `compose.yml` 只编排前端服务。
+- 服务器部署目录必须包含完整前端仓库内容，尤其是 `package.json` 与 `package-lock.json`；镜像构建会基于 lockfile 执行 `npm ci`。
 - Nginx 容器会将 `/api` 与 `/healthz` 转发到 `http://host.docker.internal:11802`。
 - `extra_hosts` 已映射 `host.docker.internal:host-gateway`，兼容常见 Linux Docker 主机。
 
@@ -85,5 +86,6 @@ docker compose -f compose.yml down
 ### 常见排查
 - 页面能打开但数据为空：先确认宿主机后端 `cligrep-server` 已启动，并检查 `http://127.0.0.1:8081/healthz`。
 - 本地开发接口失败：检查 `.env` 中 `VITE_DEV_API_TARGET` 是否指向可访问的后端地址。
+- `docker compose up -d --build` 在 `COPY package.json package-lock.json ./` 失败：说明服务器部署目录缺少 `package-lock.json`，需要重新同步完整仓库后再构建。
 - 容器启动失败：检查宿主机的 `8081` 端口是否被占用，或在 `.env` 中修改 `FRONTEND_PORT`。
 - 修改前端代码后未生效：开发模式使用 `npm run dev`，容器模式需要重新执行 `docker compose -f compose.yml up -d --build`。
