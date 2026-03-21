@@ -1,0 +1,40 @@
+:root {
+  --font-display: "Azeret Mono", monospace;
+  --font-body: "IBM Plex Mono", monospace;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --bg-accent: #1a1a1a;
+  --panel: #0a0a0a;
+  --panel-strong: #111111;
+  --text: #cccccc;
+  --muted: #666666;
+  --line: #333333;
+  --builtin: #ffd970;
+  --cli: #7bf4c7;
+  --danger: #e06c75;
+  --prompt-user: #7ec8d9;
+  --prompt-at: #5a7a82;
+  --prompt-ip: #5a7a82;
+  --prompt-path: #8a8a8a;
+  --selection-bg: #264f78;
+}
+
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --bg-accent: #f5f5f5;
+  --panel: #ffffff;
+  --panel-strong: #f8f8f8;
+  --text: #1a1a1a;
+  --muted: #888888;
+  --line: #e0e0e0;
+  --builtin: #8f5d00;
+  --cli: #006a53;
+  --danger: #bc3f35;
+  --prompt-user: #2a7a8a;
+  --prompt-at: #999999;
+  --prompt-ip: #999999;
+  --prompt-path: #666666;
+  --selection-bg: #b4d5fe;
+}

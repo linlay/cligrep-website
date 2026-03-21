@@ -1,153 +1,221 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8080";
-const BUILTIN_PREFIXES = ["grep", "help", "clear", "login", "logout", "create", "make"];
-const THEME_OPTIONS = ["system", "dark", "light"];
-const ANONYMOUS_FALLBACK = { username: "anonymous", ip: "0.0.0.0" };
-
-const INITIAL_OUTPUT = [
-  "CLI Grep v1 booted.",
-  "",
-  "Type plain text to search the registry.",
-  "Type help for built-in commands.",
-  "Press Esc to back out of results or execution.",
-].join("\n");
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { request } from "./lib/api.js";
+import { BUILTIN_PREFIXES, TAB_COMPLETIONS, MAX_HISTORY_BUFFER } from "./lib/constants.js";
+import { normalizeBuiltinLine, formatExecution, formatBuiltinExecution, exampleTail, isPrintableKey } from "./lib/commands.js";
+import { useTheme } from "./hooks/useTheme.js";
+import { useAuth } from "./hooks/useAuth.js";
+import { useFavorites } from "./hooks/useFavorites.js";
+import { useCommandHistory } from "./hooks/useCommandHistory.js";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts.js";
+import TerminalWindow from "./components/TerminalWindow.jsx";
+import PromptLine from "./components/PromptLine.jsx";
+import OutputPanel from "./components/OutputPanel.jsx";
+import ResultsPanel from "./components/ResultsPanel.jsx";
+import TrendingGrid from "./components/TrendingGrid.jsx";
+import DetailPanel from "./components/DetailPanel.jsx";
+import StatusBar from "./components/StatusBar.jsx";
+import CommandPalette from "./components/CommandPalette.jsx";
 
 function App() {
-  const [theme, setTheme] = useState(() => localStorage.getItem("cligrep-theme") || "system");
-  const [resolvedTheme, setResolvedTheme] = useState("dark");
+  const { t, i18n } = useTranslation();
+  const { theme, setTheme, resolvedTheme, cycleTheme } = useTheme();
+  const { user, activeUser, isAnonymous, ensureAnonymousSession, login, logout } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const commandHistory = useCommandHistory();
+
   const [mode, setMode] = useState("home");
   const [inputValue, setInputValue] = useState("");
-  const [history, setHistory] = useState([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
   const [trending, setTrending] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [selectedResultIndex, setSelectedResultIndex] = useState(0);
   const [currentCli, setCurrentCli] = useState(null);
   const [detail, setDetail] = useState(null);
-  const [terminalOutput, setTerminalOutput] = useState(INITIAL_OUTPUT);
-  const [statusMessage, setStatusMessage] = useState("Press Enter to grep the registry.");
-  const [hints, setHints] = useState(["Tab accepts the highlighted suggestion.", "Esc returns to the homepage."]);
-  const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem("cligrep-user");
-    return raw ? JSON.parse(raw) : null;
-  });
-  const [favoriteState, setFavoriteState] = useState(() => {
-    const raw = localStorage.getItem("cligrep-favorites");
-    return raw ? JSON.parse(raw) : {};
-  });
-  const [showLogin, setShowLogin] = useState(false);
-  const [showComment, setShowComment] = useState(false);
-  const [loginName, setLoginName] = useState("");
-  const [commentDraft, setCommentDraft] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [hints, setHints] = useState([]);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showPalette, setShowPalette] = useState(false);
+
+  // Inline prompt mode: "none" | "login-prompt" | "comment-prompt"
+  const [inlineMode, setInlineMode] = useState("none");
+  const [inlineValue, setInlineValue] = useState("");
+
+  // History buffer: array of { prompt: bool, command: string, output: string }
+  const [historyBuffer, setHistoryBuffer] = useState([]);
 
   const inputRef = useRef(null);
-  const loginRef = useRef(null);
-  const commentRef = useRef(null);
+  const inlineRef = useRef(null);
 
-  const activeUser = user ?? ANONYMOUS_FALLBACK;
-  const isAnonymous = activeUser.username === "anonymous";
-  const promptCommand = `${activeUser.username}@${activeUser.ip}:~$`;
   const selectedSearchResult = searchResults[selectedResultIndex] ?? null;
-  const currentComments = detail?.comments ?? [];
-  const favoriteCount = detail?.cli?.favoriteCount ?? currentCli?.favoriteCount ?? 0;
-  const isFavoriteActive = currentCli ? favoriteState[currentCli.slug] === true : false;
+  const isFavoriteActive = currentCli ? isFavorite(currentCli.slug) : false;
   const currentModeTheme = currentCli ? "cli" : "builtin";
 
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const updateTheme = () => {
-      setResolvedTheme(theme === "system" ? (media.matches ? "dark" : "light") : theme);
-    };
-
-    updateTheme();
-    media.addEventListener("change", updateTheme);
-    return () => media.removeEventListener("change", updateTheme);
-  }, [theme]);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = resolvedTheme;
-  }, [resolvedTheme]);
-
-  useEffect(() => {
-    localStorage.setItem("cligrep-theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem("cligrep-user", JSON.stringify(user));
-    } else {
-      localStorage.removeItem("cligrep-user");
+  const shellMeta = useMemo(() => {
+    if (currentCli) {
+      return { badge: "sandbox", title: `sandbox: ${currentCli.displayName}` };
     }
-  }, [user]);
+    return { badge: "buildin", title: "buildin search mode" };
+  }, [currentCli]);
 
-  useEffect(() => {
-    localStorage.setItem("cligrep-favorites", JSON.stringify(favoriteState));
-  }, [favoriteState]);
+  // Generate MOTD
+  function getMotd() {
+    return [
+      t("motd_line1"),
+      "",
+      t("motd_line2"),
+      t("motd_line3"),
+      t("motd_line4"),
+      t("motd_line5"),
+    ].join("\n");
+  }
 
+  // Append to history buffer
+  function appendToBuffer(command, output, showPrompt = true) {
+    setHistoryBuffer((buf) => {
+      const next = [...buf, { prompt: showPrompt, command, output }];
+      if (next.length > MAX_HISTORY_BUFFER) {
+        return next.slice(next.length - MAX_HISTORY_BUFFER);
+      }
+      return next;
+    });
+  }
+
+  // Init
   useEffect(() => {
+    setHistoryBuffer([{ prompt: false, command: "", output: getMotd() }]);
+    setStatusMessage(t("status_ready"));
+    setHints([t("hint_tab"), t("hint_esc")]);
     void loadTrending();
     if (!user) {
       void ensureAnonymousSession();
     }
   }, []);
 
+  // Focus management
   useEffect(() => {
-    const target = showLogin ? loginRef.current : showComment ? commentRef.current : inputRef.current;
-    requestAnimationFrame(() => target?.focus());
-  }, [showLogin, showComment, currentCli, mode]);
-
-  useEffect(() => {
-    const onKeyDown = (event) => {
-      if (showLogin || showComment) {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          closeOverlay();
-        }
-        return;
-      }
-
-      if (event.key === "Escape") {
-        event.preventDefault();
-        handleEscape();
-        return;
-      }
-
-      if (document.activeElement !== inputRef.current && isPrintableKey(event)) {
-        inputRef.current?.focus();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [mode, searchResults.length, currentCli, showLogin, showComment]);
-
-  const shellMeta = useMemo(() => {
-    if (currentCli) {
-      return {
-        badge: currentCli.displayName,
-        title: `${currentCli.displayName} interactive mode`,
-      };
+    if (inlineMode !== "none") {
+      requestAnimationFrame(() => inlineRef.current?.focus());
+    } else {
+      requestAnimationFrame(() => inputRef.current?.focus());
     }
+  }, [inlineMode, currentCli, mode]);
 
-    return {
-      badge: "buildin",
-      title: "buildin search mode",
-    };
-  }, [currentCli]);
+  // Keyboard shortcuts
+  const handleEscape = useCallback(() => {
+    if (inlineMode !== "none") {
+      setInlineMode("none");
+      setInlineValue("");
+      appendToBuffer("", "(cancelled)");
+      return;
+    }
+    if (mode === "execution") {
+      if (searchResults.length > 0) {
+        setMode("search-results");
+        setStatusMessage(t("status_search_ready"));
+      } else {
+        setMode("home");
+        setStatusMessage(t("status_ready"));
+      }
+      setCurrentCli(null);
+      setDetail(null);
+      setInputValue("");
+      return;
+    }
+    if (mode === "search-results") {
+      setMode("home");
+      setSearchResults([]);
+      setSelectedResultIndex(0);
+      setInputValue("");
+      setStatusMessage(t("status_ready"));
+    }
+  }, [mode, searchResults.length, inlineMode, t]);
 
-  async function ensureAnonymousSession() {
+  const handleShowHelp = useCallback(() => {
+    const helpText = [
+      t("help_shortcuts"),
+      t("help_shortcut_enter"),
+      t("help_shortcut_esc"),
+      t("help_shortcut_updown"),
+      t("help_shortcut_tab"),
+      t("help_shortcut_ctrlk"),
+      t("help_shortcut_ctrlt"),
+      t("help_shortcut_ctrlj"),
+      t("help_shortcut_ctrll"),
+      t("help_shortcut_ctrlh"),
+      t("help_shortcut_ctrlu"),
+      t("help_shortcut_ctrlf"),
+      t("help_shortcut_ctrlslash"),
+    ].join("\n");
+    appendToBuffer("shortcuts", helpText);
+  }, [t]);
+
+  const handleToggleLanguage = useCallback(() => {
+    const nextLang = i18n.language === "en" ? "zh" : "en";
+    i18n.changeLanguage(nextLang);
+    localStorage.setItem("cligrep-lang", nextLang);
+    appendToBuffer(`lang ${nextLang}`, nextLang === "zh" ? "语言已切换为中文。" : "Language switched to English.");
+    setStatusMessage(nextLang === "zh" ? "语言已切换为中文。" : "Language switched to English.");
+  }, [i18n]);
+
+  const handleClearTerminal = useCallback(() => {
+    setHistoryBuffer([]);
+  }, []);
+
+  const handleClearInput = useCallback(() => {
+    setInputValue("");
+  }, []);
+
+  const handleToggleFavorite = useCallback(async () => {
+    if (!currentCli) return;
+    if (isAnonymous || !user?.id) {
+      startLoginPrompt();
+      return;
+    }
     try {
-      const payload = await request("/api/v1/auth/mock/anonymous", { method: "POST" });
-      setUser(payload.user);
-      return payload.user;
+      const nextActive = await toggleFavorite(currentCli.slug, user.id);
+      await loadCliDetail(currentCli.slug);
+      setStatusMessage(
+        nextActive
+          ? t("status_favorited", { name: currentCli.displayName })
+          : t("status_unfavorited", { name: currentCli.displayName }),
+      );
     } catch (error) {
       setErrorMessage(error.message);
-      return null;
     }
-  }
+  }, [currentCli, isAnonymous, user, toggleFavorite, t]);
+
+  const handleStartComment = useCallback(() => {
+    if (!currentCli) return;
+    if (isAnonymous || !user?.id) {
+      startLoginPrompt();
+      return;
+    }
+    appendToBuffer("", t("comment_prompt", { name: currentCli.displayName }));
+    setInlineMode("comment-prompt");
+    setInlineValue("");
+  }, [currentCli, isAnonymous, user, t]);
+
+  useKeyboardShortcuts({
+    mode,
+    inputRef,
+    currentCli,
+    isAnonymous,
+    showPalette,
+    inlineMode: inlineMode !== "none",
+    onCycleTheme: cycleTheme,
+    onClearTerminal: handleClearTerminal,
+    onToggleLanguage: handleToggleLanguage,
+    onShowPalette: useCallback(() => setShowPalette(true), []),
+    onClosePalette: useCallback(() => setShowPalette(false), []),
+    onShowHelp: handleShowHelp,
+    onClearInput: handleClearInput,
+    onToggleFavorite: handleToggleFavorite,
+    onStartComment: handleStartComment,
+    onEscape: handleEscape,
+    onFocusInput: useCallback(() => inputRef.current?.focus(), []),
+    isPrintableKey,
+  });
 
   async function loadTrending() {
     try {
@@ -155,7 +223,7 @@ function App() {
       setTrending(data.items ?? []);
     } catch (error) {
       setErrorMessage(error.message);
-      setTerminalOutput(`Backend unavailable.\n\n${error.message}`);
+      appendToBuffer("", `${t("backend_unavailable")}\n\n${error.message}`);
     }
   }
 
@@ -168,72 +236,181 @@ function App() {
     }
   }
 
+  // Inline prompt handlers
+  function startLoginPrompt() {
+    appendToBuffer("", t("login_prompt"));
+    setInlineMode("login-prompt");
+    setInlineValue("");
+  }
+
+  async function submitInlineLogin() {
+    const username = inlineValue.trim() || "operator";
+    try {
+      const u = await login(username);
+      setInlineMode("none");
+      setInlineValue("");
+      appendToBuffer(username, t("status_logged_in", { user: `${u.username}@${u.ip}` }));
+      setStatusMessage(t("status_logged_in", { user: `${u.username}@${u.ip}` }));
+    } catch (error) {
+      setErrorMessage(error.message);
+      setInlineMode("none");
+      setInlineValue("");
+    }
+  }
+
+  async function submitInlineComment() {
+    if (!currentCli || !user) return;
+    const body = inlineValue.trim();
+    if (!body) {
+      setInlineMode("none");
+      setInlineValue("");
+      return;
+    }
+    try {
+      await request("/api/v1/comments", {
+        method: "POST",
+        body: JSON.stringify({ userId: user.id, cliSlug: currentCli.slug, body }),
+      });
+      await loadCliDetail(currentCli.slug);
+      setInlineMode("none");
+      setInlineValue("");
+      appendToBuffer(body, t("status_comment_posted", { name: currentCli.displayName }));
+      setStatusMessage(t("status_comment_posted", { name: currentCli.displayName }));
+    } catch (error) {
+      setErrorMessage(error.message);
+      setInlineMode("none");
+      setInlineValue("");
+    }
+  }
+
+  function onInlineKeyDown(event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (inlineMode === "login-prompt") {
+        void submitInlineLogin();
+      } else if (inlineMode === "comment-prompt") {
+        void submitInlineComment();
+      }
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setInlineMode("none");
+      setInlineValue("");
+      appendToBuffer("", "(cancelled)");
+    }
+  }
+
+  // Command execution
   async function executeInput() {
     const trimmed = inputValue.trim();
+
     if (!trimmed && mode === "search-results" && selectedSearchResult) {
       selectCli(selectedSearchResult);
       return;
     }
-    if (!trimmed) {
-      return;
-    }
+    if (!trimmed) return;
 
     setBusy(true);
     setErrorMessage("");
 
     try {
+      // Handle local commands first
+      if (handleLocalCommand(trimmed)) {
+        setInputValue("");
+        commandHistory.push(trimmed);
+        setBusy(false);
+        return;
+      }
+
       if (currentCli) {
-        const submittedLine = trimmed;
         const result = await request("/api/v1/exec", {
           method: "POST",
           body: JSON.stringify({
             cliSlug: currentCli.slug,
-            line: submittedLine,
+            line: trimmed,
             userId: user?.id,
             themeContext: resolvedTheme,
           }),
         });
-
-        pushHistory(submittedLine);
+        commandHistory.push(trimmed);
+        const output = formatExecution(currentCli.slug, trimmed, result);
+        appendToBuffer(trimmed, output);
         setMode("execution");
-        setTerminalOutput(formatExecution(currentCli.slug, submittedLine, result));
-        setStatusMessage(`Executed ${currentCli.slug} in ${result.durationMs}ms.`);
-        setHints(["Esc returns to search or home.", "Try --help and --version for seeded BusyBox commands."]);
+        setStatusMessage(t("status_executed", { slug: currentCli.slug, ms: result.durationMs }));
+        setHints([t("hint_esc_search"), t("hint_busybox")]);
         await loadCliDetail(currentCli.slug);
       } else {
         const line = normalizeBuiltinLine(trimmed);
         const response = await request("/api/v1/builtin/exec", {
           method: "POST",
-          body: JSON.stringify({
-            line,
-            userId: user?.id,
-          }),
+          body: JSON.stringify({ line, userId: user?.id }),
         });
-
-        pushHistory(trimmed);
-        await applyBuiltinResponse(response);
+        commandHistory.push(trimmed);
+        await applyBuiltinResponse(trimmed, response);
       }
       setInputValue("");
-      setHistoryIndex(-1);
+      commandHistory.reset();
     } catch (error) {
       setErrorMessage(error.message);
-      setTerminalOutput(`Error\n\n${error.message}`);
+      appendToBuffer(trimmed, `${t("error_prefix")}\n\n${error.message}`);
       setMode("execution");
     } finally {
       setBusy(false);
     }
   }
 
-  async function applyBuiltinResponse(response) {
+  // Handle commands that are processed locally (theme, lang, clear)
+  function handleLocalCommand(trimmed) {
+    const parts = trimmed.split(/\s+/);
+    const cmd = parts[0].toLowerCase();
+
+    if (cmd === "theme") {
+      const arg = parts[1]?.toLowerCase();
+      if (["dark", "light", "system"].includes(arg)) {
+        setTheme(arg);
+        appendToBuffer(trimmed, t("theme_switched", { theme: arg }));
+        setStatusMessage(t("theme_switched", { theme: arg }));
+        return true;
+      }
+    }
+
+    if (cmd === "lang") {
+      const arg = parts[1]?.toLowerCase();
+      if (["en", "zh"].includes(arg)) {
+        i18n.changeLanguage(arg);
+        localStorage.setItem("cligrep-lang", arg);
+        const msg = arg === "zh" ? "语言已切换为中文。" : "Language switched to English.";
+        appendToBuffer(trimmed, msg);
+        setStatusMessage(msg);
+        return true;
+      }
+    }
+
+    if (cmd === "clear") {
+      setHistoryBuffer([]);
+      return true;
+    }
+
+    if (cmd === "login" && parts.length === 1) {
+      appendToBuffer(trimmed, t("login_prompt"));
+      setInlineMode("login-prompt");
+      setInlineValue("");
+      return true;
+    }
+
+    return false;
+  }
+
+  async function applyBuiltinResponse(originalInput, response) {
     if (response.user) {
-      setUser(response.user);
+      // user state handled by auth hook indirectly via login/logout
     }
 
     if (response.action === "logout") {
       await ensureAnonymousSession();
-      setStatusMessage("Search is ready.");
+      setStatusMessage(t("status_search_done"));
     } else {
-      setStatusMessage(response.message || "Built-in command executed.");
+      setStatusMessage(response.message || t("status_builtin_executed"));
     }
     setHints(response.hints ?? []);
 
@@ -243,7 +420,7 @@ function App() {
       setDetail(null);
       setSearchResults([]);
       setSelectedResultIndex(0);
-      setTerminalOutput(INITIAL_OUTPUT);
+      appendToBuffer(originalInput, getMotd());
       await loadTrending();
       return;
     }
@@ -254,7 +431,7 @@ function App() {
       setDetail(null);
       setSearchResults(response.searchResults ?? []);
       setSelectedResultIndex(0);
-      setTerminalOutput(response.message || "Search complete.");
+      appendToBuffer(originalInput, response.message || "Search complete.");
       return;
     }
 
@@ -262,87 +439,7 @@ function App() {
     setCurrentCli(null);
     setDetail(null);
     setSelectedResultIndex(0);
-    setTerminalOutput(formatBuiltinExecution(response));
-  }
-
-  function normalizeBuiltinLine(trimmed) {
-    const first = trimmed.split(/\s+/)[0];
-    if (BUILTIN_PREFIXES.includes(first)) {
-      return trimmed;
-    }
-    return `grep ${trimmed}`;
-  }
-
-  function pushHistory(line) {
-    setHistory((current) => [line, ...current].slice(0, 40));
-  }
-
-  function formatExecution(cliSlug, submittedLine, result) {
-    const shownLine = submittedLine.startsWith(cliSlug) ? submittedLine : `${cliSlug} ${submittedLine}`.trim();
-    const normalized = normalizeExecutionResult(result);
-    const lines = [`$ ${shownLine}`, "", normalized.stdout || "(no stdout)"];
-
-    if (normalized.stderr) {
-      lines.push("", "[stderr]", normalized.stderr);
-    }
-
-    lines.push("", `exit ${result.exitCode} | ${result.durationMs}ms`);
-    return lines.join("\n");
-  }
-
-  function normalizeExecutionResult(result) {
-    if (!isSuccessfulBusyBoxHelp(result)) {
-      return result;
-    }
-
-    return {
-      ...result,
-      stdout: stripBusyBoxBanner(result.stderr),
-      stderr: "",
-    };
-  }
-
-  function isSuccessfulBusyBoxHelp(result) {
-    return (
-      result.exitCode === 0 &&
-      !result.stdout?.trim() &&
-      result.stderr?.includes("Usage:") &&
-      result.stderr?.startsWith("BusyBox v")
-    );
-  }
-
-  function stripBusyBoxBanner(text) {
-    const lines = text.split("\n");
-    if (lines[0]?.startsWith("BusyBox v")) {
-      lines.shift();
-      if (lines[0] === "") {
-        lines.shift();
-      }
-    }
-    return lines.join("\n").trim();
-  }
-
-  function formatBuiltinExecution(response) {
-    const execution = response.execution;
-    const lines = [];
-
-    if (response.asset) {
-      lines.push(`[asset] ${response.asset.kind}: ${response.asset.name}`, "");
-    }
-
-    if (execution?.stdout) {
-      lines.push(execution.stdout);
-    }
-
-    if (execution?.stderr) {
-      lines.push("", "[stderr]", execution.stderr);
-    }
-
-    if (response.message) {
-      lines.push("", response.message);
-    }
-
-    return lines.filter(Boolean).join("\n");
+    appendToBuffer(originalInput, formatBuiltinExecution(response));
   }
 
   function selectCli(cli) {
@@ -351,9 +448,9 @@ function App() {
       setMode("execution");
       setDetail(null);
       setSelectedResultIndex(0);
-      setStatusMessage("Buildin grep namespace selected.");
-      setHints(["Type help for the built-in catalog.", `Try: ${cli.exampleLine}`]);
-      setTerminalOutput([cli.displayName, "", cli.summary, "", cli.helpText].join("\n"));
+      setStatusMessage(t("status_builtin_selected"));
+      setHints([t("hint_help"), t("hint_try", { example: cli.exampleLine })]);
+      appendToBuffer(cli.displayName, [cli.displayName, "", cli.summary, "", cli.helpText].join("\n"));
       setInputValue(cli.exampleLine || "");
       return;
     }
@@ -363,129 +460,41 @@ function App() {
     setDetail(null);
     setSelectedResultIndex(0);
     setInputValue("");
-    setStatusMessage(`${cli.displayName} selected.`);
-    setHints(["Type only arguments like --help.", "Esc returns to search or home."]);
-    setTerminalOutput([
-      `Selected ${cli.displayName}`,
+    setStatusMessage(t("status_cli_selected", { name: cli.displayName }));
+    setHints([t("hint_args"), t("hint_esc_search")]);
+    appendToBuffer("", [
+      t("selected_cli", { name: cli.displayName }),
       "",
       cli.summary,
       "",
-      `Try: ${exampleTail(cli.exampleLine, cli.slug) || "--help"}`,
+      t("try_example", { example: exampleTail(cli.exampleLine, cli.slug) || "--help" }),
     ].join("\n"));
     void loadCliDetail(cli.slug);
   }
 
-  function handleEscape() {
-    if (showLogin || showComment) {
-      closeOverlay();
+  // Tab completion
+  function handleTabComplete() {
+    if (mode === "search-results" && selectedSearchResult) {
+      setInputValue(
+        selectedSearchResult.type === "builtin"
+          ? selectedSearchResult.exampleLine || selectedSearchResult.slug
+          : exampleTail(selectedSearchResult.exampleLine, selectedSearchResult.slug) || selectedSearchResult.slug,
+      );
       return;
     }
-
-    if (mode === "execution") {
-      if (searchResults.length > 0) {
-        setMode("search-results");
-        setStatusMessage("Search results ready.");
-      } else {
-        setMode("home");
-        setStatusMessage("Press Enter to grep the registry.");
+    if (currentCli && inputValue.trim() === "") {
+      setInputValue("--help");
+      return;
+    }
+    // Partial command completion
+    const partial = inputValue.trim().toLowerCase();
+    if (partial) {
+      const matches = TAB_COMPLETIONS.filter((c) => c.startsWith(partial));
+      if (matches.length === 1) {
+        setInputValue(matches[0] + " ");
+      } else if (matches.length > 1) {
+        appendToBuffer("", matches.join("  "));
       }
-      setCurrentCli(null);
-      setDetail(null);
-      setInputValue("");
-      setTerminalOutput(INITIAL_OUTPUT);
-      return;
-    }
-
-    if (mode === "search-results") {
-      setMode("home");
-      setSearchResults([]);
-      setSelectedResultIndex(0);
-      setInputValue("");
-      setTerminalOutput(INITIAL_OUTPUT);
-      setStatusMessage("Press Enter to grep the registry.");
-    }
-  }
-
-  function closeOverlay() {
-    setShowLogin(false);
-    setShowComment(false);
-    setLoginName("");
-    setCommentDraft("");
-  }
-
-  async function submitLogin(event) {
-    event.preventDefault();
-    try {
-      const payload = await request("/api/v1/auth/mock/login", {
-        method: "POST",
-        body: JSON.stringify({ username: loginName || "operator" }),
-      });
-      setUser(payload.user);
-      setStatusMessage(`Logged in as ${payload.user.username}@${payload.user.ip}.`);
-      closeOverlay();
-    } catch (error) {
-      setErrorMessage(error.message);
-    }
-  }
-
-  async function submitComment(event) {
-    event.preventDefault();
-    if (!currentCli || !user) {
-      return;
-    }
-
-    try {
-      await request("/api/v1/comments", {
-        method: "POST",
-        body: JSON.stringify({
-          userId: user.id,
-          cliSlug: currentCli.slug,
-          body: commentDraft,
-        }),
-      });
-      await loadCliDetail(currentCli.slug);
-      setStatusMessage(`Comment posted on ${currentCli.displayName}.`);
-      closeOverlay();
-    } catch (error) {
-      setErrorMessage(error.message);
-    }
-  }
-
-  async function toggleFavorite() {
-    if (!currentCli) {
-      return;
-    }
-    if (isAnonymous || !user?.id) {
-      setShowLogin(true);
-      return;
-    }
-
-    try {
-      const nextActive = !isFavoriteActive;
-      await request("/api/v1/favorites", {
-        method: "POST",
-        body: JSON.stringify({
-          userId: user.id,
-          cliSlug: currentCli.slug,
-          active: nextActive,
-        }),
-      });
-      setFavoriteState((current) => ({ ...current, [currentCli.slug]: nextActive }));
-      await loadCliDetail(currentCli.slug);
-      setStatusMessage(nextActive ? `Saved ${currentCli.displayName} to favorites.` : `Removed ${currentCli.displayName} from favorites.`);
-    } catch (error) {
-      setErrorMessage(error.message);
-    }
-  }
-
-  async function logout() {
-    try {
-      await request("/api/v1/auth/mock/logout", { method: "POST" });
-      await ensureAnonymousSession();
-      setStatusMessage("Search is ready.");
-      closeOverlay();
-    } catch (error) {
-      setErrorMessage(error.message);
     }
   }
 
@@ -495,132 +504,76 @@ function App() {
       void executeInput();
       return;
     }
-
     if (event.key === "ArrowUp") {
       event.preventDefault();
       if (mode === "search-results" && inputValue.trim() === "" && searchResults.length > 0) {
-        setSelectedResultIndex((current) => Math.max(current - 1, 0));
+        setSelectedResultIndex((i) => Math.max(i - 1, 0));
         return;
       }
-      cycleHistory(1);
+      const val = commandHistory.cycle(1);
+      if (val !== null) setInputValue(val);
       return;
     }
-
     if (event.key === "ArrowDown") {
       event.preventDefault();
       if (mode === "search-results" && inputValue.trim() === "" && searchResults.length > 0) {
-        setSelectedResultIndex((current) => Math.min(current + 1, searchResults.length - 1));
+        setSelectedResultIndex((i) => Math.min(i + 1, searchResults.length - 1));
         return;
       }
-      cycleHistory(-1);
+      const val = commandHistory.cycle(-1);
+      if (val !== null) setInputValue(val);
       return;
     }
-
     if (event.key === "Tab") {
       event.preventDefault();
-      if (mode === "search-results" && selectedSearchResult) {
-        setInputValue(
-          selectedSearchResult.type === "builtin"
-            ? selectedSearchResult.exampleLine || selectedSearchResult.slug
-            : exampleTail(selectedSearchResult.exampleLine, selectedSearchResult.slug) || selectedSearchResult.slug,
-        );
-      } else if (currentCli && inputValue.trim() === "") {
-        setInputValue("--help");
+      handleTabComplete();
+      return;
+    }
+    // Number quick select
+    if (
+      mode === "search-results" &&
+      inputValue === "" &&
+      event.key >= "1" && event.key <= "9" &&
+      !event.ctrlKey && !event.metaKey && !event.altKey
+    ) {
+      const idx = parseInt(event.key) - 1;
+      if (idx < searchResults.length) {
+        event.preventDefault();
+        selectCli(searchResults[idx]);
       }
     }
   }
 
-  function cycleHistory(direction) {
-    if (history.length === 0) {
-      return;
-    }
-
-    const nextIndex = Math.min(Math.max(historyIndex + direction, -1), history.length - 1);
-    setHistoryIndex(nextIndex);
-    setInputValue(nextIndex === -1 ? "" : history[nextIndex]);
+  // Command palette execute
+  function onPaletteExecute(cmd) {
+    setInputValue(cmd);
+    // Execute after next render
+    setTimeout(() => {
+      const parts = cmd.split(/\s+/);
+      const handled = handleLocalCommand(cmd);
+      if (handled) {
+        commandHistory.push(cmd);
+        setInputValue("");
+      } else {
+        // Let it be typed in and user can press enter, or auto-execute
+        setInputValue(cmd);
+      }
+    }, 0);
   }
 
   return (
     <div className="app-shell">
-      <div className="app-noise" />
-
-      <header className="hero-shell">
-        <div className="hero-copy">
-          <p className="eyebrow">keyboard native cli registry</p>
-          <h1>cli grep</h1>
-          <p className="hero-text">
-            Search, scaffold, sandbox, and execute one command line at a time.
-            Every interaction stays bash-shaped, from registry grep to BusyBox
-            runtime output.
-          </p>
-        </div>
-
-        <div className="hero-actions">
-          <div className="theme-switcher" role="group" aria-label="Theme switcher">
-            {THEME_OPTIONS.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={theme === option ? "theme-button active" : "theme-button"}
-                onClick={() => setTheme(option)}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-
-          <div className="auth-panel">
-            <span>{`${activeUser.username}@${activeUser.ip}`}</span>
-            {isAnonymous ? (
-              <button type="button" onClick={() => setShowLogin(true)}>
-                login
-              </button>
-            ) : (
-              <button type="button" onClick={logout}>
-                logout
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
-
       <main className="main-grid">
-        <section className="terminal-window">
-          <div className="terminal-topbar">
-            <div className="traffic-lights" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-            <div className="terminal-title">{shellMeta.title}</div>
-            <div className={`mode-badge ${currentModeTheme}`}>{shellMeta.badge}</div>
-          </div>
-
+        <TerminalWindow
+          title={shellMeta.title}
+          badge={shellMeta.badge}
+          badgeTheme={currentModeTheme}
+        >
           <div className="terminal-body">
             <div className="status-strip">
               <span>{statusMessage}</span>
-              <span>{busy ? "executing..." : "ready"}</span>
+              <span>{busy ? t("status_executing") : t("status_ready_short")}</span>
             </div>
-
-            <label className={`prompt-line ${currentModeTheme}`}>
-              <span className="prompt-text">{promptCommand}</span>
-              <span className={`session-chip ${currentModeTheme}`}>{shellMeta.badge}</span>
-              <input
-                ref={inputRef}
-                autoFocus
-                value={inputValue}
-                onChange={(event) => setInputValue(event.target.value)}
-                onKeyDown={onInputKeyDown}
-                className={`command-input ${currentModeTheme}`}
-                spellCheck="false"
-                autoComplete="off"
-                placeholder={
-                  currentCli
-                    ? "--help"
-                    : 'grep cli, or create python "..."'
-                }
-              />
-            </label>
 
             <div className="hint-row">
               {hints.map((hint) => (
@@ -630,230 +583,94 @@ function App() {
 
             {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
 
+            {/* Scrolling history buffer */}
+            <OutputPanel historyBuffer={historyBuffer} activeUser={activeUser} />
+
+            {/* Search results overlay */}
             {mode === "search-results" ? (
-              <section className="results-panel">
-                {searchResults.length === 0 ? (
-                  <div className="empty-state">No indexed CLI matched your grep.</div>
-                ) : (
-                  searchResults.map((cli, index) => (
-                    <button
-                      key={cli.slug}
-                      type="button"
-                      className={`result-row ${cli.type === "builtin" ? "builtin" : "cli"} ${index === selectedResultIndex ? "active" : ""}`}
-                      onClick={() => selectCli(cli)}
-                    >
-                      <span className={`result-type ${cli.type === "builtin" ? "builtin" : "cli"}`}>
-                        {cli.type}
-                      </span>
-                      <span className="result-slug">{cli.displayName}</span>
-                      <span className="result-summary">{cli.summary}</span>
-                      <span className="result-stats">
-                        <StarStat value={cli.favoriteCount} /> {cli.commentCount} notes
-                      </span>
-                    </button>
-                  ))
-                )}
-              </section>
+              <ResultsPanel
+                searchResults={searchResults}
+                selectedResultIndex={selectedResultIndex}
+                onSelectCli={selectCli}
+              />
+            ) : null}
+
+            {/* Inline prompt or normal prompt */}
+            {inlineMode === "login-prompt" ? (
+              <div className="inline-prompt-line">
+                <span className="inline-prompt-label">{t("login_username_prompt")}:</span>
+                <input
+                  ref={inlineRef}
+                  className="inline-prompt-input"
+                  value={inlineValue}
+                  onChange={(e) => setInlineValue(e.target.value)}
+                  onKeyDown={onInlineKeyDown}
+                  placeholder="operator"
+                  spellCheck="false"
+                  autoComplete="off"
+                />
+              </div>
+            ) : inlineMode === "comment-prompt" ? (
+              <div className="inline-prompt-line">
+                <span className="inline-prompt-label">{t("comment_input_prompt")}:</span>
+                <input
+                  ref={inlineRef}
+                  className="inline-prompt-input"
+                  value={inlineValue}
+                  onChange={(e) => setInlineValue(e.target.value)}
+                  onKeyDown={onInlineKeyDown}
+                  placeholder="This CLI feels sharp for log triage."
+                  spellCheck="false"
+                  autoComplete="off"
+                />
+              </div>
             ) : (
-              <section className="output-panel">
-                <pre>{terminalOutput}</pre>
-              </section>
+              <PromptLine
+                ref={inputRef}
+                activeUser={activeUser}
+                currentCli={currentCli}
+                inputValue={inputValue}
+                onInputChange={setInputValue}
+                onKeyDown={onInputKeyDown}
+                currentModeTheme={currentModeTheme}
+              />
             )}
           </div>
-        </section>
+        </TerminalWindow>
 
         {mode === "home" ? (
-          <section className="cards-section">
-            <div className="section-heading">
-              <span>[ trending_clis ]</span>
-              <small>4-up desktop grid, keyboard searchable from the prompt above</small>
-            </div>
-            <div className="card-grid">
-              {trending.map((cli) => (
-                <button
-                  key={cli.slug}
-                  type="button"
-                  className={`cli-card ${cli.type === "builtin" ? "builtin" : "cli"}`}
-                  onClick={() => selectCli(cli)}
-                >
-                  <div className="card-head">
-                    <strong>{cli.displayName}</strong>
-                    <StarStat value={cli.favoriteCount} />
-                  </div>
-                  <p>{cli.summary}</p>
-                  <div className="tag-row">
-                    {cli.tags.map((tag) => (
-                      <span key={tag}>{tag}</span>
-                    ))}
-                  </div>
-                  <div className="card-foot">$ {cli.exampleLine || `${cli.slug} --help`}</div>
-                </button>
-              ))}
-            </div>
-          </section>
+          <TrendingGrid trending={trending} onSelectCli={selectCli} />
         ) : null}
 
         {currentCli && detail?.cli ? (
-          <section className="detail-panel">
-            <div className="section-heading">
-              <span>[ cli_session ]</span>
-              <small>{detail.cli.runtimeImage}</small>
-            </div>
-
-            <article className="detail-card">
-              <header className="detail-head">
-                <div>
-                  <h2>{detail.cli.displayName}</h2>
-                  <p>{detail.cli.summary}</p>
-                </div>
-                <div className={detail.cli.type === "builtin" ? "detail-type builtin" : "detail-type cli"}>
-                  {detail.cli.type}
-                </div>
-              </header>
-
-              <div className="detail-meta">
-                <span><StarStat value={favoriteCount} /></span>
-                <span>{currentComments.length} comments</span>
-                <span>{detail.cli.versionText}</span>
-              </div>
-
-              <div className="tag-row">
-                {detail.cli.tags.map((tag) => (
-                  <span key={tag}>{tag}</span>
-                ))}
-              </div>
-
-              <div className="action-row">
-                <button type="button" className={isFavoriteActive ? "favorite-button active" : "favorite-button"} onClick={toggleFavorite}>
-                  {isFavoriteActive ? "★ favorited" : "☆ favorite"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => (isAnonymous ? setShowLogin(true) : setShowComment(true))}
-                >
-                  comment
-                </button>
-                <button type="button" onClick={() => setInputValue("--help")}>
-                  autofill --help
-                </button>
-              </div>
-
-              <div className="examples-block">
-                <strong>Examples</strong>
-                {(detail.examples ?? []).map((example) => (
-                  <button
-                    key={example}
-                    type="button"
-                    className="example-line"
-                    onClick={() => setInputValue(example)}
-                  >
-                    $ {detail.cli.slug} {example}
-                  </button>
-                ))}
-              </div>
-
-              <div className="comments-block">
-                <strong>Recent comments</strong>
-                {currentComments.length === 0 ? (
-                  <p className="comment-empty">No comments yet. Start the thread from the keyboard.</p>
-                ) : (
-                  currentComments.map((comment) => (
-                    <article key={comment.id} className="comment-item">
-                      <header>
-                        <span>{comment.username}</span>
-                        <time>{new Date(comment.createdAt).toLocaleString()}</time>
-                      </header>
-                      <p>{comment.body}</p>
-                    </article>
-                  ))
-                )}
-              </div>
-            </article>
-          </section>
+          <DetailPanel
+            detail={detail}
+            currentCli={currentCli}
+            isFavoriteActive={isFavoriteActive}
+            onToggleFavorite={handleToggleFavorite}
+            onComment={handleStartComment}
+            onFillHelp={() => setInputValue("--help")}
+            onFillExample={(example) => setInputValue(example)}
+          />
         ) : null}
       </main>
 
-      {showLogin ? (
-        <div className="overlay" role="dialog" aria-modal="true">
-          <form className="overlay-card" onSubmit={submitLogin}>
-            <h2>mock login</h2>
-            <p>Enter a username to get a synthetic IP-backed session.</p>
-            <input
-              ref={loginRef}
-              value={loginName}
-              onChange={(event) => setLoginName(event.target.value)}
-              placeholder="operator"
-              className="overlay-input"
-            />
-            <div className="overlay-actions">
-              <button type="submit">enter</button>
-              <button type="button" onClick={closeOverlay}>
-                esc
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+      <StatusBar
+        theme={theme}
+        resolvedTheme={resolvedTheme}
+        mode={mode}
+        busy={busy}
+        lang={i18n.language}
+      />
 
-      {showComment ? (
-        <div className="overlay" role="dialog" aria-modal="true">
-          <form className="overlay-card" onSubmit={submitComment}>
-            <h2>comment on {currentCli?.displayName}</h2>
-            <p>One line only, same spirit as the terminal.</p>
-            <input
-              ref={commentRef}
-              value={commentDraft}
-              onChange={(event) => setCommentDraft(event.target.value)}
-              placeholder="This CLI feels sharp for log triage."
-              className="overlay-input"
-            />
-            <div className="overlay-actions">
-              <button type="submit">save</button>
-              <button type="button" onClick={closeOverlay}>
-                esc
-              </button>
-            </div>
-          </form>
-        </div>
+      {showPalette ? (
+        <CommandPalette
+          onClose={() => setShowPalette(false)}
+          onExecute={onPaletteExecute}
+        />
       ) : null}
     </div>
   );
-}
-
-function StarStat({ value }) {
-  return (
-    <span className="star-stat">
-      <span className="star-icon" aria-hidden="true">★</span>
-      <span>{value}</span>
-    </span>
-  );
-}
-
-function exampleTail(exampleLine, cliSlug) {
-  if (!exampleLine) {
-    return "";
-  }
-  return exampleLine.startsWith(`${cliSlug} `) ? exampleLine.slice(cliSlug.length + 1) : exampleLine;
-}
-
-function isPrintableKey(event) {
-  return event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
-}
-
-async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers ?? {}),
-    },
-    ...options,
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.error || `Request failed with status ${response.status}`);
-  }
-  return payload;
 }
 
 export default App;

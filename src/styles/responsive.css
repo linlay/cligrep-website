@@ -1,0 +1,25 @@
+@media (max-width: 900px) {
+  .result-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .result-row .result-index {
+    display: none;
+  }
+
+  .cli-card {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+@media (max-width: 720px) {
+  .prompt-line {
+    flex-wrap: wrap;
+  }
+
+  .terminal-body {
+    min-height: 300px;
+  }
+}
