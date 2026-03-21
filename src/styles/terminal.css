@@ -219,6 +219,13 @@ button {
   background: color-mix(in srgb, var(--panel-strong) 92%, transparent);
 }
 
+.workbench-prompt-wrap {
+  margin: 18px 18px 10px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--panel-strong) 92%, transparent);
+}
+
 .workbench-stage {
   grid-template-columns: minmax(0, 1fr);
 }

@@ -63,7 +63,8 @@
     width: 100%;
   }
 
-  .home-prompt-wrap {
+  .home-prompt-wrap,
+  .workbench-prompt-wrap {
     margin: 14px;
   }
 
@@ -77,6 +78,7 @@
     padding-right: 14px;
   }
 
+  .current-output-panel,
   .history-buffer,
   .results-panel,
   .error-banner,

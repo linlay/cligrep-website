@@ -50,6 +50,8 @@
   "placeholder_help": "--help",
   "backend_unavailable": "后端不可用。",
   "error_prefix": "错误",
+  "output_empty": "暂无输出。",
+  "history_label": "历史 {{count}}",
   "notes": "笔记",
   "comments_count": "{{count}} 条评论",
   "lang_switched": "语言已切换为中文。",

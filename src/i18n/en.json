@@ -50,6 +50,8 @@
   "placeholder_help": "--help",
   "backend_unavailable": "Backend unavailable.",
   "error_prefix": "Error",
+  "output_empty": "No output yet.",
+  "history_label": "History {{count}}",
   "notes": "notes",
   "comments_count": "{{count}} comments",
   "lang_switched": "Language switched to English.",

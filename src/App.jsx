@@ -41,6 +41,7 @@ function App() {
   const [inlineMode, setInlineMode] = useState("none");
   const [inlineValue, setInlineValue] = useState("");
   const [historyBuffer, setHistoryBuffer] = useState([]);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   const inputRef = useRef(null);
   const inlineRef = useRef(null);
@@ -49,6 +50,14 @@ function App() {
   const isFavoriteActive = currentCli ? isFavorite(currentCli.slug) : false;
   const currentModeTheme = currentCli ? "cli" : "builtin";
   const isWorkbenchMode = mode !== "home";
+  const currentOutputEntry = useMemo(
+    () => (historyBuffer.length > 0 ? historyBuffer[historyBuffer.length - 1] : null),
+    [historyBuffer],
+  );
+  const historyEntries = useMemo(
+    () => (historyBuffer.length > 1 ? historyBuffer.slice(0, -1).reverse() : []),
+    [historyBuffer],
+  );
 
   const shellMeta = useMemo(() => {
     if (currentCli) {
@@ -72,6 +81,7 @@ function App() {
   }
 
   function appendToBuffer(command, output, showPrompt = true) {
+    setHistoryExpanded(false);
     setHistoryBuffer((buf) => {
       const next = [...buf, { prompt: showPrompt, command, output }];
       if (next.length > MAX_HISTORY_BUFFER) {
@@ -714,9 +724,9 @@ function App() {
                   <span>{busy ? t("status_executing") : t("status_ready_short")}</span>
                 </div>
 
-                {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
-
                 <div className="home-prompt-wrap">{renderPromptArea()}</div>
+
+                {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
               </div>
             </TerminalWindow>
 
@@ -736,11 +746,15 @@ function App() {
                   <span>{busy ? t("status_executing") : t("status_ready_short")}</span>
                 </div>
 
-                <div className="hint-row">
-                  {hints.map((hint) => (
-                    <span key={hint}>{hint}</span>
-                  ))}
-                </div>
+                <div className="workbench-prompt-wrap">{renderPromptArea()}</div>
+
+                {hints.length > 0 ? (
+                  <div className="hint-row">
+                    {hints.map((hint) => (
+                      <span key={hint}>{hint}</span>
+                    ))}
+                  </div>
+                ) : null}
 
                 {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
 
@@ -751,10 +765,16 @@ function App() {
                     onSelectCli={selectCli}
                   />
                 ) : (
-                  <OutputPanel historyBuffer={historyBuffer} activeUser={activeUser} />
+                  <OutputPanel
+                    currentEntry={currentOutputEntry}
+                    historyEntries={historyEntries}
+                    activeUser={activeUser}
+                    historyExpanded={historyExpanded}
+                    onToggleHistory={() => setHistoryExpanded((expanded) => !expanded)}
+                    emptyLabel={t("output_empty")}
+                    historyLabel={t("history_label", { count: historyEntries.length })}
+                  />
                 )}
-
-                {renderPromptArea()}
               </div>
             </TerminalWindow>
 
