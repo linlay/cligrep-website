@@ -10,7 +10,7 @@
 - Node.js 18+
 - npm
 - Docker Engine 与 Docker Compose Plugin（用于容器部署）
-- 宿主机已启动 `cligrep-server`，默认监听 `127.0.0.1:8080`
+- 宿主机已启动 `cligrep-server`，默认监听 `127.0.0.1:11802`
 
 ### 本地开发
 ```bash
@@ -19,7 +19,7 @@ npm install
 npm run dev
 ```
 
-默认开发地址为 `http://127.0.0.1:5173`。Vite 会把 `/api` 和 `/healthz` 代理到 `VITE_DEV_API_TARGET`，默认值是 `http://127.0.0.1:8080`。
+默认开发地址为 `http://127.0.0.1:5173`。Vite 会把 `/api` 和 `/healthz` 代理到 `VITE_DEV_API_TARGET`，默认值是 `http://127.0.0.1:11802`。
 
 ### 生产构建
 ```bash
@@ -36,7 +36,7 @@ npm run build
 - 当前支持的本地配置项如下：
 
 ```dotenv
-VITE_DEV_API_TARGET=http://127.0.0.1:8080
+VITE_DEV_API_TARGET=http://127.0.0.1:11802
 FRONTEND_PORT=8081
 ```
 
@@ -58,7 +58,7 @@ docker compose -f compose.yml up -d --build
 
 容器部署说明：
 - `compose.yml` 只编排前端服务。
-- Nginx 容器会将 `/api` 与 `/healthz` 转发到 `http://host.docker.internal:8080`。
+- Nginx 容器会将 `/api` 与 `/healthz` 转发到 `http://host.docker.internal:11802`。
 - `extra_hosts` 已映射 `host.docker.internal:host-gateway`，兼容常见 Linux Docker 主机。
 
 ### 镜像构建
