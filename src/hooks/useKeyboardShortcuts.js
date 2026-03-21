@@ -17,6 +17,7 @@ export function useKeyboardShortcuts({
   onStartComment,
   onEscape,
   onFocusInput,
+  onApplyQuickSlot,
   isPrintableKey,
   inlineMode,
 }) {
@@ -83,6 +84,12 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      if (event.altKey && ["1", "2", "3"].includes(event.key)) {
+        event.preventDefault();
+        onApplyQuickSlot?.(parseInt(event.key, 10) - 1);
+        return;
+      }
+
       // Focus input on printable keys
       if (document.activeElement !== inputRef.current && isPrintableKey(event)) {
         inputRef.current?.focus();
@@ -96,5 +103,6 @@ export function useKeyboardShortcuts({
     onCycleTheme, onClearTerminal, onToggleLanguage, onShowPalette,
     onClosePalette, onShowHelp, onClearInput, onToggleFavorite,
     onStartComment, onEscape, onFocusInput, isPrintableKey,
+    onApplyQuickSlot,
   ]);
 }

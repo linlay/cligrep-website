@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { sourceTypeLabel } from "../lib/cliView.js";
 
 export default function ResultsPanel({ searchResults, selectedResultIndex, onSelectCli }) {
   const { t } = useTranslation();
@@ -28,32 +29,22 @@ export default function ResultsPanel({ searchResults, selectedResultIndex, onSel
 
 function ResultRow({ cli, index, isActive, onSelect }) {
   const { t } = useTranslation();
-  const typeClass = cli.type === "builtin" ? "builtin" : "cli";
 
   return (
     <button
       type="button"
-      className={`result-row ${typeClass} ${isActive ? "active" : ""}`}
+      className={`result-row ${isActive ? "active" : ""}`.trim()}
       onClick={onSelect}
       role="option"
       aria-selected={isActive}
     >
       <span className="result-index">[{index + 1}]</span>
-      <span className={`result-type ${typeClass}`}>{cli.type}</span>
-      <span className="result-slug">{cli.displayName}</span>
-      <span className="result-summary">{cli.summary}</span>
+      <span className="result-type">{cli.environmentKind}</span>
+      <span className="result-slug">{cli.command}</span>
+      <span className="result-summary">{cli.description}</span>
       <span className="result-stats">
-        <StarStat value={cli.favoriteCount} /> {cli.commentCount} {t("notes")}
+        ★ {cli.favoriteCount} / ▶ {cli.runCount} / {sourceTypeLabel(cli.sourceType, t)}
       </span>
     </button>
-  );
-}
-
-function StarStat({ value }) {
-  return (
-    <span className="star-stat">
-      <span className="star-icon" aria-hidden="true">★</span>
-      <span>{value}</span>
-    </span>
   );
 }

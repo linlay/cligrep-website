@@ -1,11 +1,11 @@
 @media (max-width: 1180px) {
-  .topbar-shell {
-    align-items: flex-start;
-    flex-direction: column;
+  .site-header {
+    grid-template-columns: 1fr;
+    justify-items: start;
   }
 
-  .corner-controls {
-    margin-left: 0;
+  .site-flat-actions {
+    justify-content: flex-start;
   }
 }
 
@@ -18,41 +18,41 @@
     grid-template-columns: 1fr;
   }
 
-  .result-index {
-    display: none;
-  }
-
-  .trending-list {
-    column-width: 280px;
-  }
-
-  .cli-card-meta-grid,
-  .detail-metadata-grid {
+  .detail-metadata-grid,
+  .status-grid {
     grid-template-columns: 1fr;
-  }
-
-  .status-bar {
-    flex-direction: column;
-    align-items: flex-start;
   }
 }
 
 @media (max-width: 720px) {
-  .terminal-window,
-  .cards-section,
-  .detail-panel {
-    border-radius: 22px;
+  .site-flat-actions,
+  .site-bracket-actions,
+  .console-shortcuts-row,
+  .console-shortcuts-list,
+  .cards-sort-row {
+    width: 100%;
   }
 
-  .terminal-topbar {
-    border-top-left-radius: 22px;
-    border-top-right-radius: 22px;
+  .console-shortcuts-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .trending-list {
-    column-width: auto;
     column-count: 1;
-    padding: 14px 14px 0;
+    padding: 14px;
+  }
+
+  .console-input-row,
+  .console-output-panel,
+  .cards-toolbar,
+  .section-heading,
+  .detail-section,
+  .action-row,
+  .detail-meta,
+  .info-overlay-body {
+    padding-left: 14px;
+    padding-right: 14px;
   }
 
   .prompt-line,
@@ -60,51 +60,7 @@
     flex-wrap: wrap;
   }
 
-  .corner-controls {
+  .prompt-command-prefix {
     width: 100%;
-    flex-direction: column;
-  }
-
-  .toolbar-menu,
-  .toolbar-trigger,
-  .toolbar-login-button {
-    width: 100%;
-  }
-
-  .toolbar-dropdown {
-    left: 0;
-    right: auto;
-    width: 100%;
-  }
-
-  .home-prompt-wrap,
-  .workbench-prompt-wrap {
-    margin: 14px;
-  }
-
-  .hint-row,
-  .status-strip,
-  .section-heading,
-  .detail-section,
-  .action-row,
-  .detail-meta {
-    padding-left: 14px;
-    padding-right: 14px;
-  }
-
-  .current-output-panel,
-  .history-buffer,
-  .results-panel,
-  .error-banner,
-  .empty-state {
-    margin-left: 14px;
-    margin-right: 14px;
-  }
-
-  .cli-card-topbar,
-  .cli-card-body,
-  .cli-card-footer {
-    padding-left: 14px;
-    padding-right: 14px;
   }
 }
