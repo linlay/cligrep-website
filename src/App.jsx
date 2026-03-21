@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { request } from "./lib/api.js";
-import { BUILTIN_PREFIXES, TAB_COMPLETIONS, MAX_HISTORY_BUFFER } from "./lib/constants.js";
+import { TAB_COMPLETIONS, MAX_HISTORY_BUFFER } from "./lib/constants.js";
 import { normalizeBuiltinLine, formatExecution, formatBuiltinExecution, exampleTail, isPrintableKey } from "./lib/commands.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { useAuth } from "./hooks/useAuth.js";
@@ -16,6 +16,8 @@ import TrendingGrid from "./components/TrendingGrid.jsx";
 import DetailPanel from "./components/DetailPanel.jsx";
 import StatusBar from "./components/StatusBar.jsx";
 import CommandPalette from "./components/CommandPalette.jsx";
+
+const THEME_OPTIONS = ["system", "dark", "light"];
 
 function App() {
   const { t, i18n } = useTranslation();
@@ -36,12 +38,8 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showPalette, setShowPalette] = useState(false);
-
-  // Inline prompt mode: "none" | "login-prompt" | "comment-prompt"
   const [inlineMode, setInlineMode] = useState("none");
   const [inlineValue, setInlineValue] = useState("");
-
-  // History buffer: array of { prompt: bool, command: string, output: string }
   const [historyBuffer, setHistoryBuffer] = useState([]);
 
   const inputRef = useRef(null);
@@ -50,15 +48,18 @@ function App() {
   const selectedSearchResult = searchResults[selectedResultIndex] ?? null;
   const isFavoriteActive = currentCli ? isFavorite(currentCli.slug) : false;
   const currentModeTheme = currentCli ? "cli" : "builtin";
+  const isWorkbenchMode = mode !== "home";
 
   const shellMeta = useMemo(() => {
     if (currentCli) {
       return { badge: "sandbox", title: `sandbox: ${currentCli.displayName}` };
     }
-    return { badge: "buildin", title: "buildin search mode" };
-  }, [currentCli]);
+    if (mode === "search-results") {
+      return { badge: "results", title: t("workbench_search_title") };
+    }
+    return { badge: "builtin", title: t("workbench_builtin_title") };
+  }, [currentCli, mode, t]);
 
-  // Generate MOTD
   function getMotd() {
     return [
       t("motd_line1"),
@@ -70,7 +71,6 @@ function App() {
     ].join("\n");
   }
 
-  // Append to history buffer
   function appendToBuffer(command, output, showPrompt = true) {
     setHistoryBuffer((buf) => {
       const next = [...buf, { prompt: showPrompt, command, output }];
@@ -81,7 +81,6 @@ function App() {
     });
   }
 
-  // Init
   useEffect(() => {
     setHistoryBuffer([{ prompt: false, command: "", output: getMotd() }]);
     setStatusMessage(t("status_ready"));
@@ -92,7 +91,6 @@ function App() {
     }
   }, []);
 
-  // Focus management
   useEffect(() => {
     if (inlineMode !== "none") {
       requestAnimationFrame(() => inlineRef.current?.focus());
@@ -101,7 +99,6 @@ function App() {
     }
   }, [inlineMode, currentCli, mode]);
 
-  // Keyboard shortcuts
   const handleEscape = useCallback(() => {
     if (inlineMode !== "none") {
       setInlineMode("none");
@@ -109,6 +106,7 @@ function App() {
       appendToBuffer("", "(cancelled)");
       return;
     }
+
     if (mode === "execution") {
       if (searchResults.length > 0) {
         setMode("search-results");
@@ -122,6 +120,7 @@ function App() {
       setInputValue("");
       return;
     }
+
     if (mode === "search-results") {
       setMode("home");
       setSearchResults([]);
@@ -129,7 +128,7 @@ function App() {
       setInputValue("");
       setStatusMessage(t("status_ready"));
     }
-  }, [mode, searchResults.length, inlineMode, t]);
+  }, [inlineMode, mode, searchResults.length, t]);
 
   const handleShowHelp = useCallback(() => {
     const helpText = [
@@ -148,6 +147,7 @@ function App() {
       t("help_shortcut_ctrlslash"),
     ].join("\n");
     appendToBuffer("shortcuts", helpText);
+    setMode("execution");
   }, [t]);
 
   const handleToggleLanguage = useCallback(() => {
@@ -172,6 +172,7 @@ function App() {
       startLoginPrompt();
       return;
     }
+
     try {
       const nextActive = await toggleFavorite(currentCli.slug, user.id);
       await loadCliDetail(currentCli.slug);
@@ -183,7 +184,7 @@ function App() {
     } catch (error) {
       setErrorMessage(error.message);
     }
-  }, [currentCli, isAnonymous, user, toggleFavorite, t]);
+  }, [currentCli, isAnonymous, toggleFavorite, t, user]);
 
   const handleStartComment = useCallback(() => {
     if (!currentCli) return;
@@ -191,10 +192,60 @@ function App() {
       startLoginPrompt();
       return;
     }
+
     appendToBuffer("", t("comment_prompt", { name: currentCli.displayName }));
     setInlineMode("comment-prompt");
     setInlineValue("");
-  }, [currentCli, isAnonymous, user, t]);
+  }, [currentCli, isAnonymous, t, user]);
+
+  const handleThemeSelect = useCallback((nextTheme) => {
+    setTheme(nextTheme);
+    setStatusMessage(t("theme_switched", { theme: nextTheme }));
+  }, [setTheme, t]);
+
+  const handleDisplayMenuChange = useCallback((event) => {
+    const value = event.target.value;
+    if (!value) return;
+
+    if (value.startsWith("theme:")) {
+      handleThemeSelect(value.slice("theme:".length));
+    }
+
+    if (value.startsWith("lang:")) {
+      const nextLang = value.slice("lang:".length);
+      i18n.changeLanguage(nextLang);
+      localStorage.setItem("cligrep-lang", nextLang);
+      setStatusMessage(nextLang === "zh" ? "语言已切换为中文。" : "Language switched to English.");
+    }
+
+    event.target.value = "";
+  }, [handleThemeSelect, i18n]);
+
+  const handleHeaderLogout = useCallback(async () => {
+    try {
+      const anonymousUser = await logout();
+      if (anonymousUser) {
+        setStatusMessage(t("status_logged_out"));
+      }
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
+  }, [logout, t]);
+
+  const handleSessionMenuChange = useCallback((event) => {
+    const value = event.target.value;
+    if (!value) return;
+
+    if (value === "login") {
+      startLoginPrompt();
+    }
+
+    if (value === "logout") {
+      void handleHeaderLogout();
+    }
+
+    event.target.value = "";
+  }, [handleHeaderLogout]);
 
   useKeyboardShortcuts({
     mode,
@@ -236,7 +287,6 @@ function App() {
     }
   }
 
-  // Inline prompt handlers
   function startLoginPrompt() {
     appendToBuffer("", t("login_prompt"));
     setInlineMode("login-prompt");
@@ -246,11 +296,11 @@ function App() {
   async function submitInlineLogin() {
     const username = inlineValue.trim() || "operator";
     try {
-      const u = await login(username);
+      const loggedInUser = await login(username);
       setInlineMode("none");
       setInlineValue("");
-      appendToBuffer(username, t("status_logged_in", { user: `${u.username}@${u.ip}` }));
-      setStatusMessage(t("status_logged_in", { user: `${u.username}@${u.ip}` }));
+      appendToBuffer(username, t("status_logged_in", { user: `${loggedInUser.username}@${loggedInUser.ip}` }));
+      setStatusMessage(t("status_logged_in", { user: `${loggedInUser.username}@${loggedInUser.ip}` }));
     } catch (error) {
       setErrorMessage(error.message);
       setInlineMode("none");
@@ -260,12 +310,14 @@ function App() {
 
   async function submitInlineComment() {
     if (!currentCli || !user) return;
+
     const body = inlineValue.trim();
     if (!body) {
       setInlineMode("none");
       setInlineValue("");
       return;
     }
+
     try {
       await request("/api/v1/comments", {
         method: "POST",
@@ -292,6 +344,7 @@ function App() {
         void submitInlineComment();
       }
     }
+
     if (event.key === "Escape") {
       event.preventDefault();
       setInlineMode("none");
@@ -300,7 +353,6 @@ function App() {
     }
   }
 
-  // Command execution
   async function executeInput() {
     const trimmed = inputValue.trim();
 
@@ -314,7 +366,6 @@ function App() {
     setErrorMessage("");
 
     try {
-      // Handle local commands first
       if (handleLocalCommand(trimmed)) {
         setInputValue("");
         commandHistory.push(trimmed);
@@ -333,8 +384,7 @@ function App() {
           }),
         });
         commandHistory.push(trimmed);
-        const output = formatExecution(currentCli.slug, trimmed, result);
-        appendToBuffer(trimmed, output);
+        appendToBuffer(trimmed, formatExecution(currentCli.slug, trimmed, result));
         setMode("execution");
         setStatusMessage(t("status_executed", { slug: currentCli.slug, ms: result.durationMs }));
         setHints([t("hint_esc_search"), t("hint_busybox")]);
@@ -348,6 +398,7 @@ function App() {
         commandHistory.push(trimmed);
         await applyBuiltinResponse(trimmed, response);
       }
+
       setInputValue("");
       commandHistory.reset();
     } catch (error) {
@@ -359,14 +410,13 @@ function App() {
     }
   }
 
-  // Handle commands that are processed locally (theme, lang, clear)
   function handleLocalCommand(trimmed) {
     const parts = trimmed.split(/\s+/);
     const cmd = parts[0].toLowerCase();
 
     if (cmd === "theme") {
       const arg = parts[1]?.toLowerCase();
-      if (["dark", "light", "system"].includes(arg)) {
+      if (THEME_OPTIONS.includes(arg)) {
         setTheme(arg);
         appendToBuffer(trimmed, t("theme_switched", { theme: arg }));
         setStatusMessage(t("theme_switched", { theme: arg }));
@@ -392,9 +442,7 @@ function App() {
     }
 
     if (cmd === "login" && parts.length === 1) {
-      appendToBuffer(trimmed, t("login_prompt"));
-      setInlineMode("login-prompt");
-      setInlineValue("");
+      startLoginPrompt();
       return true;
     }
 
@@ -402,10 +450,6 @@ function App() {
   }
 
   async function applyBuiltinResponse(originalInput, response) {
-    if (response.user) {
-      // user state handled by auth hook indirectly via login/logout
-    }
-
     if (response.action === "logout") {
       await ensureAnonymousSession();
       setStatusMessage(t("status_search_done"));
@@ -472,7 +516,6 @@ function App() {
     void loadCliDetail(cli.slug);
   }
 
-  // Tab completion
   function handleTabComplete() {
     if (mode === "search-results" && selectedSearchResult) {
       setInputValue(
@@ -482,16 +525,17 @@ function App() {
       );
       return;
     }
+
     if (currentCli && inputValue.trim() === "") {
       setInputValue("--help");
       return;
     }
-    // Partial command completion
+
     const partial = inputValue.trim().toLowerCase();
     if (partial) {
-      const matches = TAB_COMPLETIONS.filter((c) => c.startsWith(partial));
+      const matches = TAB_COMPLETIONS.filter((completion) => completion.startsWith(partial));
       if (matches.length === 1) {
-        setInputValue(matches[0] + " ");
+        setInputValue(`${matches[0]} `);
       } else if (matches.length > 1) {
         appendToBuffer("", matches.join("  "));
       }
@@ -504,161 +548,235 @@ function App() {
       void executeInput();
       return;
     }
+
     if (event.key === "ArrowUp") {
       event.preventDefault();
       if (mode === "search-results" && inputValue.trim() === "" && searchResults.length > 0) {
-        setSelectedResultIndex((i) => Math.max(i - 1, 0));
+        setSelectedResultIndex((index) => Math.max(index - 1, 0));
         return;
       }
-      const val = commandHistory.cycle(1);
-      if (val !== null) setInputValue(val);
+      const value = commandHistory.cycle(1);
+      if (value !== null) setInputValue(value);
       return;
     }
+
     if (event.key === "ArrowDown") {
       event.preventDefault();
       if (mode === "search-results" && inputValue.trim() === "" && searchResults.length > 0) {
-        setSelectedResultIndex((i) => Math.min(i + 1, searchResults.length - 1));
+        setSelectedResultIndex((index) => Math.min(index + 1, searchResults.length - 1));
         return;
       }
-      const val = commandHistory.cycle(-1);
-      if (val !== null) setInputValue(val);
+      const value = commandHistory.cycle(-1);
+      if (value !== null) setInputValue(value);
       return;
     }
+
     if (event.key === "Tab") {
       event.preventDefault();
       handleTabComplete();
       return;
     }
-    // Number quick select
+
     if (
       mode === "search-results" &&
       inputValue === "" &&
-      event.key >= "1" && event.key <= "9" &&
-      !event.ctrlKey && !event.metaKey && !event.altKey
+      event.key >= "1" &&
+      event.key <= "9" &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
     ) {
-      const idx = parseInt(event.key) - 1;
-      if (idx < searchResults.length) {
+      const index = parseInt(event.key, 10) - 1;
+      if (index < searchResults.length) {
         event.preventDefault();
-        selectCli(searchResults[idx]);
+        selectCli(searchResults[index]);
       }
     }
   }
 
-  // Command palette execute
   function onPaletteExecute(cmd) {
     setInputValue(cmd);
-    // Execute after next render
     setTimeout(() => {
-      const parts = cmd.split(/\s+/);
       const handled = handleLocalCommand(cmd);
       if (handled) {
         commandHistory.push(cmd);
         setInputValue("");
       } else {
-        // Let it be typed in and user can press enter, or auto-execute
         setInputValue(cmd);
       }
     }, 0);
   }
 
+  function renderPromptArea() {
+    if (inlineMode === "login-prompt") {
+      return (
+        <div className="inline-prompt-line">
+          <span className="inline-prompt-label">{t("login_username_prompt")}:</span>
+          <input
+            ref={inlineRef}
+            className="inline-prompt-input"
+            value={inlineValue}
+            onChange={(event) => setInlineValue(event.target.value)}
+            onKeyDown={onInlineKeyDown}
+            placeholder="operator"
+            spellCheck="false"
+            autoComplete="off"
+          />
+        </div>
+      );
+    }
+
+    if (inlineMode === "comment-prompt") {
+      return (
+        <div className="inline-prompt-line">
+          <span className="inline-prompt-label">{t("comment_input_prompt")}:</span>
+          <input
+            ref={inlineRef}
+            className="inline-prompt-input"
+            value={inlineValue}
+            onChange={(event) => setInlineValue(event.target.value)}
+            onKeyDown={onInlineKeyDown}
+            placeholder="This CLI feels sharp for log triage."
+            spellCheck="false"
+            autoComplete="off"
+          />
+        </div>
+      );
+    }
+
+    return (
+      <PromptLine
+        ref={inputRef}
+        activeUser={activeUser}
+        currentCli={currentCli}
+        inputValue={inputValue}
+        onInputChange={setInputValue}
+        onKeyDown={onInputKeyDown}
+        currentModeTheme={currentModeTheme}
+      />
+    );
+  }
+
   return (
     <div className="app-shell">
+      <div className="app-noise" />
+
+      <header className="topbar-shell">
+        <div className="brand-lockup">
+          <span className="brand-title">cli grep</span>
+        </div>
+
+        <div className="corner-controls">
+          <label className="corner-select-wrap">
+            <span>{t("display_menu_label")}</span>
+            <select defaultValue="" onChange={handleDisplayMenuChange} className="corner-select">
+              <option value="" disabled>{t("display_menu_default")}</option>
+              <optgroup label={t("display_menu_theme_group")}>
+                {THEME_OPTIONS.map((option) => (
+                  <option key={option} value={`theme:${option}`}>
+                    {t(`theme_option_${option}`)}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label={t("display_menu_lang_group")}>
+                <option value="lang:en">{t("lang_option_en")}</option>
+                <option value="lang:zh">{t("lang_option_zh")}</option>
+              </optgroup>
+            </select>
+          </label>
+
+          <label className="corner-select-wrap">
+            <span>{isAnonymous ? t("session_menu_guest") : activeUser.username}</span>
+            <select defaultValue="" onChange={handleSessionMenuChange} className="corner-select">
+              <option value="" disabled>{t("session_menu_default")}</option>
+              {isAnonymous ? (
+                <option value="login">{t("session_action_login")}</option>
+              ) : (
+                <option value="logout">{t("session_action_logout")}</option>
+              )}
+            </select>
+          </label>
+        </div>
+      </header>
+
       <main className="main-grid">
-        <TerminalWindow
-          title={shellMeta.title}
-          badge={shellMeta.badge}
-          badgeTheme={currentModeTheme}
-        >
-          <div className="terminal-body">
-            <div className="status-strip">
-              <span>{statusMessage}</span>
-              <span>{busy ? t("status_executing") : t("status_ready_short")}</span>
-            </div>
+        {mode === "home" ? (
+          <>
+            <TerminalWindow
+              className="home-terminal-window"
+              title={t("home_terminal_title")}
+              badge="bash"
+              badgeTheme="builtin"
+            >
+              <div className="terminal-body home-terminal-body">
+                <div className="status-strip">
+                  <span>{statusMessage}</span>
+                  <span>{busy ? t("status_executing") : t("status_ready_short")}</span>
+                </div>
 
-            <div className="hint-row">
-              {hints.map((hint) => (
-                <span key={hint}>{hint}</span>
-              ))}
-            </div>
+                {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
 
-            {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+                <div className="home-prompt-wrap">{renderPromptArea()}</div>
+              </div>
+            </TerminalWindow>
 
-            {/* Scrolling history buffer */}
-            <OutputPanel historyBuffer={historyBuffer} activeUser={activeUser} />
+            <TrendingGrid trending={trending} onSelectCli={selectCli} />
+          </>
+        ) : (
+          <section className="workbench-stage">
+            <TerminalWindow
+              className="workbench-terminal-window"
+              title={shellMeta.title}
+              badge={shellMeta.badge}
+              badgeTheme={currentModeTheme}
+            >
+              <div className="terminal-body">
+                <div className="status-strip">
+                  <span>{statusMessage}</span>
+                  <span>{busy ? t("status_executing") : t("status_ready_short")}</span>
+                </div>
 
-            {/* Search results overlay */}
-            {mode === "search-results" ? (
-              <ResultsPanel
-                searchResults={searchResults}
-                selectedResultIndex={selectedResultIndex}
-                onSelectCli={selectCli}
+                <div className="hint-row">
+                  {hints.map((hint) => (
+                    <span key={hint}>{hint}</span>
+                  ))}
+                </div>
+
+                {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+
+                {mode === "search-results" ? (
+                  <ResultsPanel
+                    searchResults={searchResults}
+                    selectedResultIndex={selectedResultIndex}
+                    onSelectCli={selectCli}
+                  />
+                ) : (
+                  <OutputPanel historyBuffer={historyBuffer} activeUser={activeUser} />
+                )}
+
+                {renderPromptArea()}
+              </div>
+            </TerminalWindow>
+
+            {currentCli && detail?.cli ? (
+              <DetailPanel
+                detail={detail}
+                currentCli={currentCli}
+                isFavoriteActive={isFavoriteActive}
+                onToggleFavorite={handleToggleFavorite}
+                onComment={handleStartComment}
+                onFillHelp={() => setInputValue("--help")}
+                onFillExample={(example) => setInputValue(example)}
               />
             ) : null}
-
-            {/* Inline prompt or normal prompt */}
-            {inlineMode === "login-prompt" ? (
-              <div className="inline-prompt-line">
-                <span className="inline-prompt-label">{t("login_username_prompt")}:</span>
-                <input
-                  ref={inlineRef}
-                  className="inline-prompt-input"
-                  value={inlineValue}
-                  onChange={(e) => setInlineValue(e.target.value)}
-                  onKeyDown={onInlineKeyDown}
-                  placeholder="operator"
-                  spellCheck="false"
-                  autoComplete="off"
-                />
-              </div>
-            ) : inlineMode === "comment-prompt" ? (
-              <div className="inline-prompt-line">
-                <span className="inline-prompt-label">{t("comment_input_prompt")}:</span>
-                <input
-                  ref={inlineRef}
-                  className="inline-prompt-input"
-                  value={inlineValue}
-                  onChange={(e) => setInlineValue(e.target.value)}
-                  onKeyDown={onInlineKeyDown}
-                  placeholder="This CLI feels sharp for log triage."
-                  spellCheck="false"
-                  autoComplete="off"
-                />
-              </div>
-            ) : (
-              <PromptLine
-                ref={inputRef}
-                activeUser={activeUser}
-                currentCli={currentCli}
-                inputValue={inputValue}
-                onInputChange={setInputValue}
-                onKeyDown={onInputKeyDown}
-                currentModeTheme={currentModeTheme}
-              />
-            )}
-          </div>
-        </TerminalWindow>
-
-        {mode === "home" ? (
-          <TrendingGrid trending={trending} onSelectCli={selectCli} />
-        ) : null}
-
-        {currentCli && detail?.cli ? (
-          <DetailPanel
-            detail={detail}
-            currentCli={currentCli}
-            isFavoriteActive={isFavoriteActive}
-            onToggleFavorite={handleToggleFavorite}
-            onComment={handleStartComment}
-            onFillHelp={() => setInputValue("--help")}
-            onFillExample={(example) => setInputValue(example)}
-          />
-        ) : null}
+          </section>
+        )}
       </main>
 
       <StatusBar
         theme={theme}
         resolvedTheme={resolvedTheme}
-        mode={mode}
+        mode={isWorkbenchMode ? mode : "home"}
         busy={busy}
         lang={i18n.language}
       />

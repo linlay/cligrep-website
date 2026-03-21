@@ -1,6 +1,6 @@
-export default function TerminalWindow({ title, badge, badgeTheme, children }) {
+export default function TerminalWindow({ title, badge, badgeTheme, children, className = "" }) {
   return (
-    <section className="terminal-window">
+    <section className={`terminal-window ${className}`.trim()}>
       <div className="terminal-topbar">
         <div className="traffic-lights" aria-hidden="true">
           <span />

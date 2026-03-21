@@ -1,25 +1,87 @@
+@media (max-width: 1180px) {
+  .topbar-shell {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 @media (max-width: 900px) {
-  .result-row {
-    grid-template-columns: 1fr;
-    gap: 4px;
+  .app-shell {
+    padding: 20px;
   }
 
-  .result-row .result-index {
+  .result-row {
+    grid-template-columns: 1fr;
+  }
+
+  .result-index {
     display: none;
   }
 
   .cli-card {
-    grid-template-columns: 1fr;
-    gap: 4px;
+    grid-template-columns: auto 1fr;
+  }
+
+  .card-stats {
+    grid-column: 2;
+  }
+
+  .status-bar {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
 @media (max-width: 720px) {
-  .prompt-line {
+  .terminal-window,
+  .cards-section,
+  .detail-panel {
+    border-radius: 22px;
+  }
+
+  .terminal-topbar {
+    border-top-left-radius: 22px;
+    border-top-right-radius: 22px;
+  }
+
+  .trending-list {
+    grid-template-columns: 1fr;
+  }
+
+  .prompt-line,
+  .inline-prompt-line {
     flex-wrap: wrap;
   }
 
-  .terminal-body {
-    min-height: 300px;
+  .corner-controls {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .corner-select-wrap,
+  .corner-select {
+    width: 100%;
+  }
+
+  .home-prompt-wrap {
+    margin: 14px;
+  }
+
+  .hint-row,
+  .status-strip,
+  .section-heading,
+  .detail-section,
+  .action-row,
+  .detail-meta {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .history-buffer,
+  .results-panel,
+  .error-banner,
+  .empty-state {
+    margin-left: 14px;
+    margin-right: 14px;
   }
 }

@@ -1,44 +1,39 @@
-.prompt-line {
+.prompt-line,
+.inline-prompt-line {
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 0;
+  padding: 14px 16px;
   background: transparent;
 }
 
 .prompt-user {
   color: var(--prompt-user);
-  font-weight: 400;
 }
 
-.prompt-at {
+.prompt-at,
+.prompt-ip {
   color: var(--prompt-at);
 }
 
-.prompt-ip {
-  color: var(--prompt-ip);
-}
-
-.prompt-path {
+.prompt-path,
+.prompt-dollar {
   color: var(--prompt-path);
 }
 
 .prompt-dollar {
-  color: var(--prompt-path);
   margin-right: 8px;
 }
 
-.command-input {
+.command-input,
+.inline-prompt-input {
   width: 100%;
   border: none;
   outline: none;
   background: transparent;
   color: var(--text);
-  box-shadow: none;
   padding: 0;
-  caret-color: var(--text);
+  box-shadow: none;
 }
 
 .command-input.builtin {
@@ -49,59 +44,22 @@
   caret-color: var(--cli);
 }
 
-.command-input::placeholder {
+.command-input::placeholder,
+.inline-prompt-input::placeholder {
   color: var(--muted);
-  opacity: 0.35;
+  opacity: 0.42;
 }
 
 .command-input:focus,
-.command-input:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
-/* Inline prompt input (login / comment) */
-.inline-prompt-line {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 8px 16px;
-  background: transparent;
-}
-
-.inline-prompt-label {
-  color: var(--builtin);
-  margin-right: 8px;
-  white-space: nowrap;
-}
-
-.inline-prompt-input {
-  width: 100%;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--text);
-  padding: 0;
-  caret-color: var(--builtin);
-}
-
-.inline-prompt-input::placeholder {
-  color: var(--muted);
-  opacity: 0.35;
-}
-
+.command-input:focus-visible,
 .inline-prompt-input:focus,
 .inline-prompt-input:focus-visible {
   outline: none;
   box-shadow: none;
 }
 
-/* Cursor blink animation */
-@keyframes cursor-blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
-}
-
-.command-input:focus {
-  animation: none;
+.inline-prompt-label {
+  color: var(--builtin);
+  margin-right: 8px;
+  white-space: nowrap;
 }
