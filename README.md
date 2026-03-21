@@ -37,12 +37,12 @@ npm run build
 
 ```dotenv
 VITE_DEV_API_TARGET=http://127.0.0.1:11802
-FRONTEND_PORT=8081
+FRONTEND_PORT=11801
 ```
 
 说明：
 - `VITE_DEV_API_TARGET`：仅影响 `npm run dev` 的本地代理目标。
-- `FRONTEND_PORT`：用于 `compose.yml` 的宿主机端口映射，默认 `8081`。
+- `FRONTEND_PORT`：用于 `compose.yml` 的宿主机端口映射，默认 `11801`。
 - 如确有特殊需要，也可在构建时显式注入 `VITE_API_BASE` 覆盖默认 `/api`，但标准部署路径不依赖它。
 
 ## 4. 部署
@@ -53,8 +53,8 @@ docker compose -f compose.yml up -d --build
 ```
 
 默认访问地址：
-- 首页：[http://127.0.0.1:8081](http://127.0.0.1:8081)
-- 前端转发健康检查：[http://127.0.0.1:8081/healthz](http://127.0.0.1:8081/healthz)
+- 首页：[http://127.0.0.1:11801](http://127.0.0.1:11801)
+- 前端转发健康检查：[http://127.0.0.1:11801/healthz](http://127.0.0.1:11801/healthz)
 
 容器部署说明：
 - `compose.yml` 只编排前端服务。
@@ -84,8 +84,8 @@ docker compose -f compose.yml down
 ```
 
 ### 常见排查
-- 页面能打开但数据为空：先确认宿主机后端 `cligrep-server` 已启动，并检查 `http://127.0.0.1:8081/healthz`。
+- 页面能打开但数据为空：先确认宿主机后端 `cligrep-server` 已启动，并检查 `http://127.0.0.1:11801/healthz`。
 - 本地开发接口失败：检查 `.env` 中 `VITE_DEV_API_TARGET` 是否指向可访问的后端地址。
 - `docker compose up -d --build` 在 `COPY package.json package-lock.json ./` 失败：说明服务器部署目录缺少 `package-lock.json`，需要重新同步完整仓库后再构建。
-- 容器启动失败：检查宿主机的 `8081` 端口是否被占用，或在 `.env` 中修改 `FRONTEND_PORT`。
+- 容器启动失败：检查宿主机的 `11801` 端口是否被占用，或在 `.env` 中修改 `FRONTEND_PORT`。
 - 修改前端代码后未生效：开发模式使用 `npm run dev`，容器模式需要重新执行 `docker compose -f compose.yml up -d --build`。

@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     image: cligrep-website:latest
     ports:
-      - "${FRONTEND_PORT:-8081}:80"
+      - "${FRONTEND_PORT:-11801}:80"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
