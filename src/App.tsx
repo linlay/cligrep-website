@@ -293,8 +293,8 @@ function App() {
 
     const runTypingCycle = () => {
       let index = 0;
-      setTypedBrand("");
       setIsBrandTyping(true);
+      setTypedBrand("");
 
       const typeNext = () => {
         index += 1;
@@ -304,16 +304,15 @@ function App() {
           schedule(typeNext, BRAND_TYPING_STEP_MS);
           return;
         }
-
-        setIsBrandTyping(false);
+        if(index === BRAND_TEXT.length){
+          setIsBrandTyping(false);
+        }
         schedule(runTypingCycle, BRAND_TYPING_INTERVAL_MS);
       };
 
       schedule(typeNext, BRAND_TYPING_STEP_MS);
     };
 
-    setTypedBrand(BRAND_TEXT);
-    setIsBrandTyping(false);
     schedule(runTypingCycle, BRAND_TYPING_INTERVAL_MS);
 
     return () => {

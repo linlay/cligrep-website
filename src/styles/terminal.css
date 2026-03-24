@@ -99,13 +99,7 @@ button {
 .brand-caret {
   flex: 0 0 auto;
   color: var(--builtin);
-  animation: blink 900ms steps(1) infinite;
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
+  transition: opacity .3s ease;
 }
 
 .site-flat-actions,
