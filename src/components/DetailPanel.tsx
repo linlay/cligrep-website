@@ -1,16 +1,39 @@
 import { useTranslation } from "react-i18next";
-import { formatCliDate, normalizeCliView, sourceTypeLabel } from "../lib/cliView.js";
+import { formatCliDate, normalizeCliView, sourceTypeLabel } from "../lib/cliView";
+import type { CliDetailPayload } from "../types";
 
-export default function DetailPanel({ detail, onToggleFavorite, isFavoriteActive, onComment, onFillHelp, onFillExample }) {
+interface DetailPanelProps {
+  detail: CliDetailPayload | null;
+  onToggleFavorite: () => void;
+  isFavoriteActive: boolean;
+  onComment: () => void;
+  onFillHelp: () => void;
+  onFillExample: (example: string) => void;
+}
+
+interface MetadataProps {
+  label: string;
+  value: string;
+}
+
+export default function DetailPanel({
+  detail,
+  onToggleFavorite,
+  isFavoriteActive,
+  onComment,
+  onFillHelp,
+  onFillExample,
+}: DetailPanelProps) {
   const { t, i18n } = useTranslation();
   if (!detail?.cli) return null;
 
-  const cli = normalizeCliView(detail.cli, { examples: detail.examples });
+  const cli = normalizeCliView(detail.cli, { examples: detail.examples ?? [] });
+  if (!cli) return null;
   const promptCommands = (detail.examples ?? cli.promptCommands).slice(0, 6);
   const repoLinks = [
     cli.githubUrl ? { label: "GitHub", href: cli.githubUrl } : null,
     cli.giteeUrl ? { label: "Gitee", href: cli.giteeUrl } : null,
-  ].filter(Boolean);
+  ].filter((link): link is { label: string; href: string } => Boolean(link));
 
   return (
     <section className="detail-panel">
@@ -86,7 +109,7 @@ export default function DetailPanel({ detail, onToggleFavorite, isFavoriteActive
   );
 }
 
-function Metadata({ label, value }) {
+function Metadata({ label, value }: MetadataProps) {
   return (
     <div className="detail-metadata-item">
       <span>{label}</span>

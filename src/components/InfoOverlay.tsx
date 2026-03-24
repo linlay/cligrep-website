@@ -1,4 +1,12 @@
-export default function InfoOverlay({ title, onClose, children }) {
+import type { ReactNode } from "react";
+
+interface InfoOverlayProps {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}
+
+export default function InfoOverlay({ title, onClose, children }: InfoOverlayProps) {
   return (
     <div className="command-palette-overlay" role="presentation" onClick={onClose}>
       <section className="info-overlay-card" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>

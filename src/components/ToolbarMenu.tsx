@@ -1,18 +1,26 @@
 import { useEffect, useId, useRef, useState } from "react";
+import type { ToolbarMenuItem } from "../types";
 
-export default function ToolbarMenu({ label, value, items, tone = "default" }) {
+interface ToolbarMenuProps {
+  label: string;
+  value: string;
+  items: ToolbarMenuItem[];
+  tone?: string;
+}
+
+export default function ToolbarMenu({ label, value, items, tone = "default" }: ToolbarMenuProps) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
   useEffect(() => {
-    function handlePointerDown(event) {
-      if (!rootRef.current?.contains(event.target)) {
+    function handlePointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
       }
     }
 
-    function handleEscape(event) {
+    function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
       }
@@ -26,7 +34,7 @@ export default function ToolbarMenu({ label, value, items, tone = "default" }) {
     };
   }, []);
 
-  function handleSelect(item) {
+  function handleSelect(item: ToolbarMenuItem) {
     item.onSelect();
     setOpen(false);
   }

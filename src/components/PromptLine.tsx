@@ -1,8 +1,19 @@
-import { forwardRef } from "react";
+import { forwardRef, type ForwardedRef, type KeyboardEvent } from "react";
+import type { User } from "../types";
+
+interface PromptLineProps {
+  activeUser: User;
+  commandPrefix: string;
+  inputValue: string;
+  onInputChange: (value: string) => void;
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+  currentModeTheme: string;
+  placeholder: string;
+}
 
 const PromptLine = forwardRef(function PromptLine(
-  { activeUser, commandPrefix, inputValue, onInputChange, onKeyDown, currentModeTheme, placeholder },
-  ref,
+  { activeUser, commandPrefix, inputValue, onInputChange, onKeyDown, currentModeTheme, placeholder }: PromptLineProps,
+  ref: ForwardedRef<HTMLInputElement>,
 ) {
   return (
     <label className="prompt-line">
@@ -19,7 +30,7 @@ const PromptLine = forwardRef(function PromptLine(
         onChange={(event) => onInputChange(event.target.value)}
         onKeyDown={onKeyDown}
         className={`command-input ${currentModeTheme}`}
-        spellCheck="false"
+        spellCheck={false}
         autoComplete="off"
         placeholder={placeholder}
         aria-label="Terminal input"

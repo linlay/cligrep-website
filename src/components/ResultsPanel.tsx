@@ -1,7 +1,21 @@
 import { useTranslation } from "react-i18next";
-import { sourceTypeLabel } from "../lib/cliView.js";
+import { sourceTypeLabel } from "../lib/cliView";
+import type { CliView } from "../types";
 
-export default function ResultsPanel({ searchResults, selectedResultIndex, onSelectCli }) {
+interface ResultsPanelProps {
+  searchResults: CliView[];
+  selectedResultIndex: number;
+  onSelectCli: (cli: CliView) => void;
+}
+
+interface ResultRowProps {
+  cli: CliView;
+  index: number;
+  isActive: boolean;
+  onSelect: () => void;
+}
+
+export default function ResultsPanel({ searchResults, selectedResultIndex, onSelectCli }: ResultsPanelProps) {
   const { t } = useTranslation();
 
   if (searchResults.length === 0) {
@@ -27,7 +41,7 @@ export default function ResultsPanel({ searchResults, selectedResultIndex, onSel
   );
 }
 
-function ResultRow({ cli, index, isActive, onSelect }) {
+function ResultRow({ cli, index, isActive, onSelect }: ResultRowProps) {
   const { t } = useTranslation();
 
   return (

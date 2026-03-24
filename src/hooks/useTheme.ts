@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
+import type { ResolvedTheme, ThemeOption } from "../types";
 
 export function useTheme() {
-  const [theme, setTheme] = useState(() => localStorage.getItem("cligrep-theme") || "system");
-  const [resolvedTheme, setResolvedTheme] = useState("dark");
+  const [theme, setTheme] = useState<ThemeOption>(() => {
+    const savedTheme = localStorage.getItem("cligrep-theme");
+    return savedTheme === "dark" || savedTheme === "light" || savedTheme === "system" ? savedTheme : "system";
+  });
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("dark");
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -23,7 +27,7 @@ export function useTheme() {
   }, [theme]);
 
   function cycleTheme() {
-    const options = ["system", "dark", "light"];
+    const options: ThemeOption[] = ["system", "dark", "light"];
     const idx = options.indexOf(theme);
     setTheme(options[(idx + 1) % options.length]);
   }

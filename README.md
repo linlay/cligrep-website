@@ -7,7 +7,7 @@
 
 ## 2. 快速开始
 ### 前置要求
-- Node.js 18+
+- Node.js 18+（推荐 Node.js 20，仓库附带 `.nvmrc`）
 - npm
 - Docker Engine 与 Docker Compose Plugin（用于容器部署）
 - 宿主机已启动 `cligrep-server`，默认监听 `127.0.0.1:11802`

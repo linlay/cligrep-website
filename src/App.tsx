@@ -1,23 +1,60 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
-import { request } from "./lib/api.js";
-import { MAX_HISTORY_BUFFER, TAB_COMPLETIONS, THEME_OPTIONS } from "./lib/constants.js";
-import { formatBuiltinExecution, formatExecution, getQuickSlotIndex, isPrintableKey } from "./lib/commands.js";
-import { useTheme } from "./hooks/useTheme.js";
-import { useAuth } from "./hooks/useAuth.js";
-import { useFavorites } from "./hooks/useFavorites.js";
-import { useCommandHistory } from "./hooks/useCommandHistory.js";
-import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts.js";
-import TerminalWindow from "./components/TerminalWindow.jsx";
-import PromptLine from "./components/PromptLine.jsx";
-import OutputPanel from "./components/OutputPanel.jsx";
-import ResultsPanel from "./components/ResultsPanel.jsx";
-import TrendingGrid from "./components/TrendingGrid.jsx";
-import DetailPanel from "./components/DetailPanel.jsx";
-import CommentsPanel from "./components/CommentsPanel.jsx";
-import CommandPalette from "./components/CommandPalette.jsx";
-import InfoOverlay from "./components/InfoOverlay.jsx";
-import { buildBuiltinLine, commandIdentity, environmentTone, normalizeCliView } from "./lib/cliView.js";
+import { request } from "./lib/api";
+import {
+  MAX_HISTORY_BUFFER,
+  TAB_COMPLETIONS,
+  THEME_OPTIONS,
+} from "./lib/constants";
+import {
+  formatBuiltinExecution,
+  formatExecution,
+  getQuickSlotIndex,
+  isPrintableKey,
+} from "./lib/commands";
+import { useTheme } from "./hooks/useTheme";
+import { useAuth } from "./hooks/useAuth";
+import { useFavorites } from "./hooks/useFavorites";
+import { useCommandHistory } from "./hooks/useCommandHistory";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import TerminalWindow from "./components/TerminalWindow";
+import PromptLine from "./components/PromptLine";
+import OutputPanel from "./components/OutputPanel";
+import ResultsPanel from "./components/ResultsPanel";
+import TrendingGrid from "./components/TrendingGrid";
+import DetailPanel from "./components/DetailPanel";
+import CommentsPanel from "./components/CommentsPanel";
+import CommandPalette from "./components/CommandPalette";
+import InfoOverlay from "./components/InfoOverlay";
+import {
+  buildBuiltinLine,
+  commandIdentity,
+  environmentTone,
+  normalizeCliView,
+} from "./lib/cliView";
+import type {
+  AppMode,
+  BuiltinExecResponse,
+  CliDetailPayload,
+  CliRecord,
+  CliView,
+  HistoryEntry,
+  HistoryEntryMeta,
+  HomeFeed,
+  HomeFeedSort,
+  InfoPanel,
+  InlineMode,
+  Language,
+  ThemeOption,
+  TrendingResponse,
+} from "./types";
 
 const DEFAULT_WEBSITE_COMMAND = normalizeCliView({
   slug: "builtin-grep",
@@ -33,59 +70,90 @@ const DEFAULT_WEBSITE_COMMAND = normalizeCliView({
   promptCommands: ["ripgrep", "python script", "mcp bridge"],
   versionText: "website builtin",
   createdAt: "2026-01-01T00:00:00Z",
-});
+})!;
 
 const BRAND_TEXT = "CLI GREP";
 const BRAND_TYPING_INTERVAL_MS = 15000;
 const BRAND_TYPING_STEP_MS = 120;
 
-const BUILTIN_SHORTCUTS = {
+const BUILTIN_SHORTCUTS: Record<string, string[]> = {
   "builtin-grep": ["ripgrep", "python script", "mcp bridge"],
-  "builtin-create": ['"make a todo cli"', '"build a markdown linter"', '"scan log files"'],
+  "builtin-create": [
+    '"make a todo cli"',
+    '"build a markdown linter"',
+    '"scan log files"',
+  ],
   "builtin-make": ["sandbox grep", "dockerfile rg", "sandbox uv"],
 };
 
-function createMeta(meta = {}) {
+interface ApplyLanguageOptions {
+  record?: boolean;
+  command?: string;
+}
+
+function createMeta(meta: Partial<HistoryEntryMeta> = {}): HistoryEntryMeta {
   return {
     durationMs: meta.durationMs ?? 0,
     modeLabel: meta.modeLabel ?? "WEBSITE",
   };
 }
 
-function isWebsiteBuiltinCli(cli) {
-  return cli?.environmentKind === "WEBSITE" && Object.hasOwn(BUILTIN_SHORTCUTS, cli.slug);
+function isWebsiteBuiltinCli(cli: CliView): boolean {
+  return (
+    cli.environmentKind === "WEBSITE" &&
+    Object.prototype.hasOwnProperty.call(BUILTIN_SHORTCUTS, cli.slug)
+  );
+}
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function App() {
   const { t, i18n } = useTranslation();
   const { theme, setTheme, resolvedTheme, cycleTheme } = useTheme();
-  const { user, activeUser, isAnonymous, ensureAnonymousSession, login, logout } = useAuth();
+  const {
+    user,
+    activeUser,
+    isAnonymous,
+    ensureAnonymousSession,
+    login,
+    logout,
+  } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
   const commandHistory = useCommandHistory();
 
-  const [mode, setMode] = useState("home");
+  const [mode, setMode] = useState<AppMode>("home");
   const [inputValue, setInputValue] = useState("");
-  const [homeFeed, setHomeFeed] = useState({ items: [], total: 0, sort: "favorites" });
-  const [searchResults, setSearchResults] = useState([]);
+  const [homeFeed, setHomeFeed] = useState<HomeFeed>({
+    items: [],
+    total: 0,
+    sort: "favorites",
+  });
+  const [searchResults, setSearchResults] = useState<CliView[]>([]);
   const [selectedResultIndex, setSelectedResultIndex] = useState(0);
-  const [currentCli, setCurrentCli] = useState(null);
-  const [activeBuiltinCli, setActiveBuiltinCli] = useState(DEFAULT_WEBSITE_COMMAND);
-  const [detail, setDetail] = useState(null);
+  const [currentCli, setCurrentCli] = useState<CliView | null>(null);
+  const [activeBuiltinCli, setActiveBuiltinCli] = useState<CliView>(
+    DEFAULT_WEBSITE_COMMAND,
+  );
+  const [detail, setDetail] = useState<CliDetailPayload | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
-  const [hints, setHints] = useState(DEFAULT_WEBSITE_COMMAND.promptCommands);
+  const [hints, setHints] = useState<string[]>(
+    DEFAULT_WEBSITE_COMMAND.promptCommands,
+  );
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showPalette, setShowPalette] = useState(false);
-  const [inlineMode, setInlineMode] = useState("none");
+  const [inlineMode, setInlineMode] = useState<InlineMode>("none");
   const [inlineValue, setInlineValue] = useState("");
-  const [historyBuffer, setHistoryBuffer] = useState([]);
+  const [historyBuffer, setHistoryBuffer] = useState<HistoryEntry[]>([]);
   const [historyOffset, setHistoryOffset] = useState(0);
   const [typedBrand, setTypedBrand] = useState(BRAND_TEXT);
   const [isBrandTyping, setIsBrandTyping] = useState(false);
-  const [infoPanel, setInfoPanel] = useState(null);
+  const [infoPanel, setInfoPanel] = useState<InfoPanel | null>(null);
 
-  const inputRef = useRef(null);
-  const inlineRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const inlineRef = useRef<HTMLInputElement>(null);
   const nextHistoryEntryId = useRef(0);
 
   const selectedSearchResult = searchResults[selectedResultIndex] ?? null;
@@ -103,20 +171,28 @@ function App() {
   const showDetailPanels = Boolean(
     currentCli &&
     detail?.cli &&
-    (currentCli.environmentKind === "SANDBOX" || currentCli.environmentKind === "TEXT"),
+    (currentCli.environmentKind === "SANDBOX" ||
+      currentCli.environmentKind === "TEXT"),
   );
   const outputDurationLabel = currentOutputEntry?.meta?.durationMs
     ? t("console_duration", { ms: currentOutputEntry.meta.durationMs })
     : t("console_duration_idle");
-  const outputModeLabel = currentOutputEntry?.meta?.modeLabel ?? selectedCommand.environmentKind;
+  const outputModeLabel =
+    currentOutputEntry?.meta?.modeLabel ?? selectedCommand.environmentKind;
   const shouldShowOutputPanel = !isWebsiteBuiltinCli(selectedCommand);
   const outputHistoryTotal = historyBuffer.length;
-  const outputHistoryPosition = outputHistoryTotal > 0 ? outputHistoryTotal - historyOffset : 0;
+  const outputHistoryPosition =
+    outputHistoryTotal > 0 ? outputHistoryTotal - historyOffset : 0;
   const maxHistoryOffset = Math.max(historyBuffer.length - 1, 0);
   const canViewOlderOutput = historyOffset < outputHistoryTotal - 1;
   const canViewNewerOutput = historyOffset > 0;
 
-  function buildHistoryEntry(command, output, showPrompt = true, meta = {}) {
+  function buildHistoryEntry(
+    command: string,
+    output: string,
+    showPrompt = true,
+    meta: Partial<HistoryEntryMeta> = {},
+  ): HistoryEntry {
     nextHistoryEntryId.current += 1;
     return {
       id: nextHistoryEntryId.current,
@@ -127,10 +203,18 @@ function App() {
     };
   }
 
-  function appendToBuffer(command, output, showPrompt = true, meta = {}) {
+  function appendToBuffer(
+    command: string,
+    output: string,
+    showPrompt = true,
+    meta: Partial<HistoryEntryMeta> = {},
+  ) {
     setHistoryOffset(0);
     setHistoryBuffer((buf) => {
-      const next = [...buf, buildHistoryEntry(command, output, showPrompt, meta)];
+      const next = [
+        ...buf,
+        buildHistoryEntry(command, output, showPrompt, meta),
+      ];
       if (next.length > MAX_HISTORY_BUFFER) {
         return next.slice(next.length - MAX_HISTORY_BUFFER);
       }
@@ -138,7 +222,7 @@ function App() {
     });
   }
 
-  function getMotd() {
+  function getMotd(): string {
     return [
       t("motd_line1"),
       "",
@@ -149,24 +233,37 @@ function App() {
     ].join("\n");
   }
 
-  const loadHomepage = useCallback(async (sort = homeFeed.sort || "favorites") => {
-    const payload = await request(`/api/v1/clis/trending?sort=${encodeURIComponent(sort)}`);
-    setHomeFeed({
-      items: (payload.items ?? []).map((cli) => normalizeCliView(cli)),
-      total: payload.total ?? 0,
-      sort: payload.sort ?? sort,
-    });
-  }, [homeFeed.sort]);
+  const loadHomepage = useCallback(
+    async (sort: HomeFeedSort = homeFeed.sort || "favorites") => {
+      const payload = await request<TrendingResponse>(
+        `/api/v1/clis/trending?sort=${encodeURIComponent(sort)}`,
+      );
+      setHomeFeed({
+        items: (payload.items ?? [])
+          .map((cli) => normalizeCliView(cli))
+          .filter((cli): cli is CliView => Boolean(cli)),
+        total: payload.total ?? 0,
+        sort: payload.sort ?? sort,
+      });
+    },
+    [homeFeed.sort],
+  );
 
-  const loadCliDetail = useCallback(async (cliSlug) => {
-    const payload = await request(`/api/v1/clis/${cliSlug}`);
+  const loadCliDetail = useCallback(async (cliSlug: string) => {
+    const payload = await request<CliDetailPayload>(`/api/v1/clis/${cliSlug}`);
     setDetail(payload);
-    const normalized = normalizeCliView(payload.cli, { examples: payload.examples });
-    setHints(resolveShortcutCommands(normalized, payload, []));
+    const normalized = normalizeCliView(payload.cli, {
+      examples: payload.examples ?? [],
+    });
+    if (normalized) {
+      setHints(resolveShortcutCommands(normalized, payload, []));
+    }
   }, []);
 
   useEffect(() => {
-    setHistoryBuffer([buildHistoryEntry("", getMotd(), false, { modeLabel: "WEBSITE" })]);
+    setHistoryBuffer([
+      buildHistoryEntry("", getMotd(), false, { modeLabel: "WEBSITE" }),
+    ]);
     setHistoryOffset(0);
     setStatusMessage(t("status_ready"));
     void loadHomepage("favorites");
@@ -184,9 +281,9 @@ function App() {
   }, [inlineMode, mode, currentCli]);
 
   useEffect(() => {
-    const timeoutIds = new Set();
+    const timeoutIds = new Set<number>();
 
-    const schedule = (callback, delay) => {
+    const schedule = (callback: () => void, delay: number) => {
       const timeoutId = window.setTimeout(() => {
         timeoutIds.delete(timeoutId);
         callback();
@@ -226,21 +323,27 @@ function App() {
   }, []);
 
   useEffect(() => {
-    setHistoryOffset((currentOffset) => {
-      return Math.min(currentOffset, maxHistoryOffset);
-    });
+    setHistoryOffset((currentOffset) =>
+      Math.min(currentOffset, maxHistoryOffset),
+    );
   }, [maxHistoryOffset]);
 
-  const applyLanguage = useCallback((nextLang, options = {}) => {
-    const { record = false, command = `lang ${nextLang}` } = options;
-    i18n.changeLanguage(nextLang);
-    localStorage.setItem("cligrep-lang", nextLang);
-    const message = nextLang === "zh" ? "语言已切换为中文。" : "Language switched to English.";
-    if (record) {
-      appendToBuffer(command, message, true, { modeLabel: "WEBSITE" });
-    }
-    setStatusMessage(message);
-  }, [i18n]);
+  const applyLanguage = useCallback(
+    (nextLang: Language, options: ApplyLanguageOptions = {}) => {
+      const { record = false, command = `lang ${nextLang}` } = options;
+      void i18n.changeLanguage(nextLang);
+      localStorage.setItem("cligrep-lang", nextLang);
+      const message =
+        nextLang === "zh"
+          ? "语言已切换为中文。"
+          : "Language switched to English.";
+      if (record) {
+        appendToBuffer(command, message, true, { modeLabel: "WEBSITE" });
+      }
+      setStatusMessage(message);
+    },
+    [i18n],
+  );
 
   const resetToHome = useCallback(async () => {
     setMode("home");
@@ -265,7 +368,9 @@ function App() {
     if (inlineMode !== "none") {
       setInlineMode("none");
       setInlineValue("");
-      appendToBuffer("", "(cancelled)", false, { modeLabel: selectedCommand.environmentKind });
+      appendToBuffer("", "(cancelled)", false, {
+        modeLabel: selectedCommand.environmentKind,
+      });
       return;
     }
 
@@ -285,17 +390,30 @@ function App() {
     if (mode === "search-results") {
       void resetToHome();
     }
-  }, [infoPanel, inlineMode, mode, resetToHome, searchResults.length, selectedCommand.environmentKind, t]);
+  }, [
+    infoPanel,
+    inlineMode,
+    mode,
+    resetToHome,
+    searchResults.length,
+    selectedCommand.environmentKind,
+    t,
+  ]);
 
   const handleShowHelp = useCallback(() => {
-    appendToBuffer("help", [
-      t("help_shortcuts"),
-      t("help_shortcut_enter"),
-      t("help_shortcut_esc"),
-      t("help_shortcut_updown"),
-      t("help_shortcut_tab"),
-      t("help_shortcut_alt"),
-    ].join("\n"), true, { modeLabel: selectedCommand.environmentKind });
+    appendToBuffer(
+      "help",
+      [
+        t("help_shortcuts"),
+        t("help_shortcut_enter"),
+        t("help_shortcut_esc"),
+        t("help_shortcut_updown"),
+        t("help_shortcut_tab"),
+        t("help_shortcut_alt"),
+      ].join("\n"),
+      true,
+      { modeLabel: selectedCommand.environmentKind },
+    );
     setMode("execution");
   }, [selectedCommand.environmentKind, t]);
 
@@ -308,10 +426,13 @@ function App() {
     setInputValue("");
   }, []);
 
-  const handleThemeSelect = useCallback((nextTheme) => {
-    setTheme(nextTheme);
-    setStatusMessage(t("theme_switched", { theme: nextTheme }));
-  }, [setTheme, t]);
+  const handleThemeSelect = useCallback(
+    (nextTheme: ThemeOption) => {
+      setTheme(nextTheme);
+      setStatusMessage(t("theme_switched", { theme: nextTheme }));
+    },
+    [setTheme, t],
+  );
 
   const handleHeaderLogout = useCallback(async () => {
     try {
@@ -320,7 +441,7 @@ function App() {
         setStatusMessage(t("status_logged_out"));
       }
     } catch (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(toErrorMessage(error));
     }
   }, [logout, t]);
 
@@ -336,12 +457,23 @@ function App() {
       await loadCliDetail(currentCli.slug);
       await loadHomepage(homeFeed.sort || "favorites");
       setStatusMessage(
-        nextActive ? t("status_favorited", { name: currentCli.command }) : t("status_unfavorited", { name: currentCli.command }),
+        nextActive
+          ? t("status_favorited", { name: currentCli.command })
+          : t("status_unfavorited", { name: currentCli.command }),
       );
     } catch (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(toErrorMessage(error));
     }
-  }, [currentCli, homeFeed.sort, isAnonymous, loadCliDetail, loadHomepage, t, toggleFavorite, user]);
+  }, [
+    currentCli,
+    homeFeed.sort,
+    isAnonymous,
+    loadCliDetail,
+    loadHomepage,
+    t,
+    toggleFavorite,
+    user,
+  ]);
 
   const handleStartComment = useCallback(() => {
     if (!currentCli) return;
@@ -350,7 +482,12 @@ function App() {
       return;
     }
 
-    appendToBuffer("", t("comment_prompt", { name: currentCli.command }), false, { modeLabel: currentCli.environmentKind });
+    appendToBuffer(
+      "",
+      t("comment_prompt", { name: currentCli.command }),
+      false,
+      { modeLabel: currentCli.environmentKind },
+    );
     setInlineMode("comment-prompt");
     setInlineValue("");
   }, [currentCli, isAnonymous, t, user]);
@@ -365,7 +502,7 @@ function App() {
     onCycleTheme: cycleTheme,
     onClearTerminal: handleClearTerminal,
     onToggleLanguage: useCallback(() => {
-      const nextLang = i18n.language === "en" ? "zh" : "en";
+      const nextLang: Language = i18n.language === "en" ? "zh" : "en";
       applyLanguage(nextLang, { record: true });
     }, [applyLanguage, i18n.language]),
     onShowPalette: useCallback(() => setShowPalette(true), []),
@@ -392,17 +529,28 @@ function App() {
       const loggedInUser = await login(username);
       setInlineMode("none");
       setInlineValue("");
-      appendToBuffer(username, t("status_logged_in", { user: `${loggedInUser.username}@${loggedInUser.ip}` }), true, { modeLabel: "WEBSITE" });
-      setStatusMessage(t("status_logged_in", { user: `${loggedInUser.username}@${loggedInUser.ip}` }));
+      appendToBuffer(
+        username,
+        t("status_logged_in", {
+          user: `${loggedInUser.username}@${loggedInUser.ip}`,
+        }),
+        true,
+        { modeLabel: "WEBSITE" },
+      );
+      setStatusMessage(
+        t("status_logged_in", {
+          user: `${loggedInUser.username}@${loggedInUser.ip}`,
+        }),
+      );
     } catch (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(toErrorMessage(error));
       setInlineMode("none");
       setInlineValue("");
     }
   }
 
   async function submitInlineComment() {
-    if (!currentCli || !user) return;
+    if (!currentCli || !user?.id) return;
 
     const body = inlineValue.trim();
     if (!body) {
@@ -414,15 +562,28 @@ function App() {
     try {
       await request("/api/v1/comments", {
         method: "POST",
-        body: JSON.stringify({ userId: user.id, cliSlug: currentCli.slug, body }),
+        body: JSON.stringify({
+          userId: user.id,
+          cliSlug: currentCli.slug,
+          body,
+        }),
       });
       await loadCliDetail(currentCli.slug);
       setInlineMode("none");
       setInlineValue("");
-      appendToBuffer(body, t("status_comment_posted", { name: currentCli.command }), true, { modeLabel: currentCli.environmentKind });
-      setStatusMessage(t("status_comment_posted", { name: currentCli.command }));
+      appendToBuffer(
+        body,
+        t("status_comment_posted", { name: currentCli.command }),
+        true,
+        {
+          modeLabel: currentCli.environmentKind,
+        },
+      );
+      setStatusMessage(
+        t("status_comment_posted", { name: currentCli.command }),
+      );
     } catch (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(toErrorMessage(error));
       setInlineMode("none");
       setInlineValue("");
     }
@@ -430,10 +591,13 @@ function App() {
 
   async function openStatusPanel() {
     try {
-      const payload = await request("/healthz");
+      const payload = await request<Record<string, unknown>>("/healthz");
       setInfoPanel({ kind: "status", payload });
     } catch (error) {
-      setInfoPanel({ kind: "status", payload: { status: "error", message: error.message } });
+      setInfoPanel({
+        kind: "status",
+        payload: { status: "error", message: toErrorMessage(error) },
+      });
     }
   }
 
@@ -464,13 +628,20 @@ function App() {
             modeLabel: "TEXT",
           });
           setMode("execution");
-          setStatusMessage(t("status_text_loaded", { name: currentCli.command }));
+          setStatusMessage(
+            t("status_text_loaded", { name: currentCli.command }),
+          );
           setInputValue("");
           commandHistory.push(trimmed);
           return;
         }
 
-        const result = await request("/api/v1/exec", {
+        const result = await request<{
+          exitCode: number;
+          durationMs: number;
+          stdout?: string;
+          stderr?: string;
+        }>("/api/v1/exec", {
           method: "POST",
           body: JSON.stringify({
             cliSlug: currentCli.slug,
@@ -480,20 +651,33 @@ function App() {
           }),
         });
         commandHistory.push(trimmed);
-        appendToBuffer(trimmed, formatExecution(currentCli.command, trimmed, result), true, {
-          durationMs: result.durationMs,
-          modeLabel: "SANDBOX",
-        });
+        appendToBuffer(
+          trimmed,
+          formatExecution(currentCli.command, trimmed, result),
+          true,
+          {
+            durationMs: result.durationMs,
+            modeLabel: "SANDBOX",
+          },
+        );
         setMode("execution");
-        setStatusMessage(t("status_executed", { slug: currentCli.command, ms: result.durationMs }));
+        setStatusMessage(
+          t("status_executed", {
+            slug: currentCli.command,
+            ms: result.durationMs,
+          }),
+        );
         await loadCliDetail(currentCli.slug);
         await loadHomepage(homeFeed.sort || "favorites");
       } else {
         const line = buildBuiltinLine(activeBuiltinCli, trimmed);
-        const response = await request("/api/v1/builtin/exec", {
-          method: "POST",
-          body: JSON.stringify({ line, userId: user?.id }),
-        });
+        const response = await request<BuiltinExecResponse>(
+          "/api/v1/builtin/exec",
+          {
+            method: "POST",
+            body: JSON.stringify({ line, userId: user?.id }),
+          },
+        );
         commandHistory.push(trimmed);
         await applyBuiltinResponse(trimmed, response);
       }
@@ -501,30 +685,35 @@ function App() {
       setInputValue("");
       commandHistory.reset();
     } catch (error) {
-      setErrorMessage(error.message);
-      appendToBuffer(trimmed, `${t("error_prefix")}\n\n${error.message}`, true, { modeLabel: selectedCommand.environmentKind });
+      const message = toErrorMessage(error);
+      setErrorMessage(message);
+      appendToBuffer(trimmed, `${t("error_prefix")}\n\n${message}`, true, {
+        modeLabel: selectedCommand.environmentKind,
+      });
       setMode("execution");
     } finally {
       setBusy(false);
     }
   }
 
-  function handleLocalCommand(trimmed) {
+  function handleLocalCommand(trimmed: string): boolean {
     const parts = trimmed.split(/\s+/);
     const cmd = parts[0].toLowerCase();
 
     if (cmd === "theme") {
       const arg = parts[1]?.toLowerCase();
-      if (THEME_OPTIONS.includes(arg)) {
-        handleThemeSelect(arg);
-        appendToBuffer(trimmed, t("theme_switched", { theme: arg }), true, { modeLabel: "WEBSITE" });
+      if (arg && THEME_OPTIONS.includes(arg as ThemeOption)) {
+        handleThemeSelect(arg as ThemeOption);
+        appendToBuffer(trimmed, t("theme_switched", { theme: arg }), true, {
+          modeLabel: "WEBSITE",
+        });
         return true;
       }
     }
 
     if (cmd === "lang") {
       const arg = parts[1]?.toLowerCase();
-      if (["en", "zh"].includes(arg)) {
+      if (arg === "en" || arg === "zh") {
         applyLanguage(arg, { record: true, command: trimmed });
         return true;
       }
@@ -532,6 +721,7 @@ function App() {
 
     if (cmd === "clear") {
       setHistoryBuffer([]);
+      setHistoryOffset(0);
       return true;
     }
 
@@ -543,7 +733,10 @@ function App() {
     return false;
   }
 
-  async function applyBuiltinResponse(originalInput, response) {
+  async function applyBuiltinResponse(
+    originalInput: string,
+    response: BuiltinExecResponse,
+  ) {
     if (response.action === "logout") {
       await ensureAnonymousSession();
       setStatusMessage(t("status_search_done"));
@@ -569,9 +762,18 @@ function App() {
       setCurrentCli(null);
       setActiveBuiltinCli(DEFAULT_WEBSITE_COMMAND);
       setDetail(null);
-      setSearchResults((response.searchResults ?? []).map((cli) => normalizeCliView(cli)));
+      setSearchResults(
+        (response.searchResults ?? [])
+          .map((cli) => normalizeCliView(cli))
+          .filter((cli): cli is CliView => Boolean(cli)),
+      );
       setSelectedResultIndex(0);
-      appendToBuffer(originalInput, response.message || t("search_complete"), true, { modeLabel: "WEBSITE" });
+      appendToBuffer(
+        originalInput,
+        response.message || t("search_complete"),
+        true,
+        { modeLabel: "WEBSITE" },
+      );
       return;
     }
 
@@ -583,13 +785,18 @@ function App() {
     });
   }
 
-  function selectCli(rawCli) {
+  function selectCli(rawCli: CliRecord | CliView) {
     const cli = normalizeCliView(rawCli);
+    if (!cli) return;
+
     setSelectedResultIndex(0);
     setHistoryOffset(0);
 
     if (cli.environmentKind === "WEBSITE") {
-      const nextBuiltin = { ...cli, promptCommands: resolveBuiltinShortcuts(cli.slug) };
+      const nextBuiltin: CliView = {
+        ...cli,
+        promptCommands: resolveBuiltinShortcuts(cli.slug),
+      };
       setActiveBuiltinCli(nextBuiltin);
       setCurrentCli(null);
       setMode("execution");
@@ -606,13 +813,20 @@ function App() {
     setInputValue("");
     setHints(resolveShortcutCommands(cli, null, []));
     setStatusMessage(t("status_cli_selected", { name: cli.command }));
-    appendToBuffer("", [t("selected_cli", { name: cli.command }), "", cli.description].join("\n"), false, {
-      modeLabel: cli.environmentKind,
-    });
+    appendToBuffer(
+      "",
+      [t("selected_cli", { name: cli.command }), "", cli.description].join(
+        "\n",
+      ),
+      false,
+      {
+        modeLabel: cli.environmentKind,
+      },
+    );
     void loadCliDetail(cli.slug);
   }
 
-  function applyQuickSlot(index) {
+  function applyQuickSlot(index: number) {
     const nextValue = shortcutCommands[index];
     if (nextValue) {
       setInputValue(nextValue);
@@ -620,13 +834,15 @@ function App() {
   }
 
   function showOlderOutput() {
-    setHistoryOffset((currentOffset) => (
-      currentOffset < maxHistoryOffset ? currentOffset + 1 : currentOffset
-    ));
+    setHistoryOffset((currentOffset) =>
+      currentOffset < maxHistoryOffset ? currentOffset + 1 : currentOffset,
+    );
   }
 
   function showNewerOutput() {
-    setHistoryOffset((currentOffset) => (currentOffset > 0 ? currentOffset - 1 : currentOffset));
+    setHistoryOffset((currentOffset) =>
+      currentOffset > 0 ? currentOffset - 1 : currentOffset,
+    );
   }
 
   function handleTabComplete() {
@@ -642,15 +858,17 @@ function App() {
 
     const partial = inputValue.trim().toLowerCase();
     if (partial) {
-      const matches = TAB_COMPLETIONS.filter((completion) => completion.startsWith(partial));
+      const matches = TAB_COMPLETIONS.filter((completion) =>
+        completion.startsWith(partial),
+      );
       if (matches.length === 1) {
         setInputValue(`${matches[0]} `);
       }
     }
   }
 
-  function onInputKeyDown(event) {
-    const quickSlotIndex = getQuickSlotIndex(event);
+  function onInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    const quickSlotIndex = getQuickSlotIndex(event.nativeEvent);
     if (quickSlotIndex !== null) {
       event.preventDefault();
       applyQuickSlot(quickSlotIndex);
@@ -665,7 +883,11 @@ function App() {
 
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      if (mode === "search-results" && inputValue.trim() === "" && searchResults.length > 0) {
+      if (
+        mode === "search-results" &&
+        inputValue.trim() === "" &&
+        searchResults.length > 0
+      ) {
         setSelectedResultIndex((index) => Math.max(index - 1, 0));
         return;
       }
@@ -676,8 +898,14 @@ function App() {
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      if (mode === "search-results" && inputValue.trim() === "" && searchResults.length > 0) {
-        setSelectedResultIndex((index) => Math.min(index + 1, searchResults.length - 1));
+      if (
+        mode === "search-results" &&
+        inputValue.trim() === "" &&
+        searchResults.length > 0
+      ) {
+        setSelectedResultIndex((index) =>
+          Math.min(index + 1, searchResults.length - 1),
+        );
         return;
       }
       const value = commandHistory.cycle(-1);
@@ -688,11 +916,10 @@ function App() {
     if (event.key === "Tab") {
       event.preventDefault();
       handleTabComplete();
-      return;
     }
   }
 
-  function onInlineKeyDown(event) {
+  function onInlineKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
       if (inlineMode === "login-prompt") {
@@ -708,9 +935,9 @@ function App() {
     }
   }
 
-  function onPaletteExecute(cmd) {
+  function onPaletteExecute(cmd: string) {
     setInputValue(cmd);
-    setTimeout(() => {
+    window.setTimeout(() => {
       const handled = handleLocalCommand(cmd);
       if (handled) {
         commandHistory.push(cmd);
@@ -724,7 +951,10 @@ function App() {
       return (
         <div className="inline-prompt-line">
           <span className="inline-prompt-label">
-            {inlineMode === "login-prompt" ? t("login_username_prompt") : t("comment_input_prompt")}:
+            {inlineMode === "login-prompt"
+              ? t("login_username_prompt")
+              : t("comment_input_prompt")}
+            :
           </span>
           <input
             ref={inlineRef}
@@ -732,8 +962,12 @@ function App() {
             value={inlineValue}
             onChange={(event) => setInlineValue(event.target.value)}
             onKeyDown={onInlineKeyDown}
-            placeholder={inlineMode === "login-prompt" ? "operator" : "This CLI feels sharp for log triage."}
-            spellCheck="false"
+            placeholder={
+              inlineMode === "login-prompt"
+                ? "operator"
+                : "This CLI feels sharp for log triage."
+            }
+            spellCheck={false}
             autoComplete="off"
           />
         </div>
@@ -749,7 +983,11 @@ function App() {
         onInputChange={setInputValue}
         onKeyDown={onInputKeyDown}
         currentModeTheme={currentModeTheme}
-        placeholder={selectedCommand.environmentKind === "WEBSITE" ? t("placeholder_search") : t("placeholder_args")}
+        placeholder={
+          selectedCommand.environmentKind === "WEBSITE"
+            ? t("placeholder_search")
+            : t("placeholder_args")
+        }
       />
     );
   }
@@ -761,26 +999,74 @@ function App() {
       <header className="site-header">
         <div className="site-brand" aria-label={BRAND_TEXT}>
           <span className="brand-title-shell">
-            <span className="brand-title-sizer" aria-hidden="true">{BRAND_TEXT}</span>
-            <span className="brand-title" aria-hidden="true">{typedBrand}</span>
+            <span className="brand-title-sizer" aria-hidden="true">
+              {BRAND_TEXT}
+            </span>
+            <span className="brand-title" aria-hidden="true">
+              {typedBrand}
+              <span
+                className="brand-caret"
+                aria-hidden="true"
+                style={{ opacity: isBrandTyping ? 1 : 0 }}
+              >
+                _
+              </span>
+            </span>
           </span>
-          {isBrandTyping ? <span className="brand-caret" aria-hidden="true">_</span> : null}
         </div>
 
         <div className="site-flat-actions">
-          <button type="button" className="flat-action-button" onClick={() => void resetToHome()}>{t("header_search")}</button>
-          <button type="button" className="flat-action-button" onClick={() => void openStatusPanel()}>{t("header_status")}</button>
-          <button type="button" className="flat-action-button" onClick={() => setInfoPanel({ kind: "docs" })}>{t("header_docs")}</button>
+          <button
+            type="button"
+            className="flat-action-button"
+            onClick={() => void resetToHome()}
+          >
+            {t("header_search")}
+          </button>
+          <button
+            type="button"
+            className="flat-action-button"
+            onClick={() => void openStatusPanel()}
+          >
+            {t("header_status")}
+          </button>
+          <button
+            type="button"
+            className="flat-action-button"
+            onClick={() => setInfoPanel({ kind: "docs" })}
+          >
+            {t("header_docs")}
+          </button>
         </div>
 
         <div className="site-bracket-actions">
-          <button type="button" className="bracket-action-button" onClick={() => handleThemeSelect(THEME_OPTIONS[(THEME_OPTIONS.indexOf(theme) + 1) % THEME_OPTIONS.length])}>
+          <button
+            type="button"
+            className="bracket-action-button"
+            onClick={() =>
+              handleThemeSelect(
+                THEME_OPTIONS[
+                  (THEME_OPTIONS.indexOf(theme) + 1) % THEME_OPTIONS.length
+                ],
+              )
+            }
+          >
             [{resolvedTheme === "dark" ? "moon" : "sun"}]
           </button>
-          <button type="button" className="bracket-action-button" onClick={() => applyLanguage(i18n.language === "en" ? "zh" : "en")}>
+          <button
+            type="button"
+            className="bracket-action-button"
+            onClick={() => applyLanguage(i18n.language === "en" ? "zh" : "en")}
+          >
             [{i18n.language.toUpperCase()}]
           </button>
-          <button type="button" className="bracket-action-button accent" onClick={() => (isAnonymous ? startLoginPrompt() : void handleHeaderLogout())}>
+          <button
+            type="button"
+            className="bracket-action-button accent"
+            onClick={() =>
+              isAnonymous ? startLoginPrompt() : void handleHeaderLogout()
+            }
+          >
             [$ {isAnonymous ? t("session_action_login") : activeUser.username}]
           </button>
         </div>
@@ -799,15 +1085,24 @@ function App() {
             <div className="console-shortcuts-row">
               <div className="console-shortcuts-list">
                 {shortcutCommands.slice(0, 3).map((hint, index) => (
-                  <button key={hint} type="button" className="console-shortcut-chip" onClick={() => applyQuickSlot(index)}>
+                  <button
+                    key={hint}
+                    type="button"
+                    className="console-shortcut-chip"
+                    onClick={() => applyQuickSlot(index)}
+                  >
                     {t("quick_slot_hint", { slot: index + 1, hint })}
                   </button>
                 ))}
               </div>
-              <span className="console-escape-hint">ESC {t("hint_esc_search")}</span>
+              <span className="console-escape-hint">
+                ESC {t("hint_esc_search")}
+              </span>
             </div>
 
-            {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+            {errorMessage ? (
+              <div className="error-banner">{errorMessage}</div>
+            ) : null}
 
             {shouldShowOutputPanel ? (
               <OutputPanel
@@ -857,17 +1152,26 @@ function App() {
               onFillHelp={() => setInputValue("--help")}
               onFillExample={(example) => setInputValue(example)}
             />
-            <CommentsPanel comments={detail?.comments ?? []} onComment={handleStartComment} />
+            <CommentsPanel
+              comments={detail?.comments ?? []}
+              onComment={handleStartComment}
+            />
           </section>
         ) : null}
       </main>
 
       {showPalette ? (
-        <CommandPalette onClose={() => setShowPalette(false)} onExecute={onPaletteExecute} />
+        <CommandPalette
+          onClose={() => setShowPalette(false)}
+          onExecute={onPaletteExecute}
+        />
       ) : null}
 
       {infoPanel?.kind === "docs" ? (
-        <InfoOverlay title={t("header_docs")} onClose={() => setInfoPanel(null)}>
+        <InfoOverlay
+          title={t("header_docs")}
+          onClose={() => setInfoPanel(null)}
+        >
           <div className="info-copy">
             <p>{t("docs_intro")}</p>
             <p>{t("docs_runtime")}</p>
@@ -877,12 +1181,17 @@ function App() {
       ) : null}
 
       {infoPanel?.kind === "status" ? (
-        <InfoOverlay title={t("header_status")} onClose={() => setInfoPanel(null)}>
+        <InfoOverlay
+          title={t("header_status")}
+          onClose={() => setInfoPanel(null)}
+        >
           <div className="status-grid">
             {Object.entries(infoPanel.payload).map(([key, value]) => (
               <div key={key} className="status-grid-item">
                 <span>{key}</span>
-                <strong>{Array.isArray(value) ? value.join(", ") : String(value)}</strong>
+                <strong>
+                  {Array.isArray(value) ? value.join(", ") : String(value)}
+                </strong>
               </div>
             ))}
           </div>
@@ -892,11 +1201,15 @@ function App() {
   );
 }
 
-function resolveBuiltinShortcuts(slug) {
+function resolveBuiltinShortcuts(slug: string): string[] {
   return BUILTIN_SHORTCUTS[slug] ?? DEFAULT_WEBSITE_COMMAND.promptCommands;
 }
 
-function resolveShortcutCommands(selectedCommand, detail, hints) {
+function resolveShortcutCommands(
+  selectedCommand: CliView,
+  detail: CliDetailPayload | null,
+  hints: string[],
+): string[] {
   if (detail?.examples?.length) {
     return detail.examples.slice(0, 3);
   }
@@ -906,19 +1219,21 @@ function resolveShortcutCommands(selectedCommand, detail, hints) {
   }
 
   if (selectedCommand.exampleLine) {
-    return [selectedCommand.exampleLine, "--help", "--version"].filter(Boolean).slice(0, 3);
+    return [selectedCommand.exampleLine, "--help", "--version"]
+      .filter((value): value is string => Boolean(value))
+      .slice(0, 3);
   }
 
-  return (hints ?? []).slice(0, 3);
+  return hints.slice(0, 3);
 }
 
-function buildTextCommandOutput(cli) {
+function buildTextCommandOutput(cli: CliView): string {
   const sections = [
     cli.helpText || cli.description,
     "",
     `environment: ${cli.environmentKind}`,
     `source: ${cli.sourceType}`,
-    `executable: false`,
+    "executable: false",
   ];
   return sections.join("\n");
 }

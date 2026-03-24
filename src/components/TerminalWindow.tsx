@@ -1,4 +1,14 @@
-export default function TerminalWindow({ title, badge, badgeTheme, children, className = "" }) {
+import type { ReactNode } from "react";
+
+interface TerminalWindowProps {
+  title: string;
+  badge: string;
+  badgeTheme: string;
+  children: ReactNode;
+  className?: string;
+}
+
+export default function TerminalWindow({ title, badge, badgeTheme, children, className = "" }: TerminalWindowProps) {
   return (
     <section className={`terminal-window ${className}`.trim()}>
       <div className="terminal-topbar">

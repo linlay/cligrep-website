@@ -1,4 +1,26 @@
-function HistoryEntry({ entry, activeUser }) {
+import type { HistoryEntry, User } from "../types";
+
+interface HistoryEntryProps {
+  entry: HistoryEntry;
+  activeUser: User;
+}
+
+interface OutputPanelProps {
+  currentEntry: HistoryEntry | null;
+  activeUser: User;
+  emptyLabel: string;
+  historyPositionLabel: string;
+  durationLabel: string;
+  modeLabel: string;
+  onShowOlder: () => void;
+  onShowNewer: () => void;
+  canShowOlder: boolean;
+  canShowNewer: boolean;
+  olderLabel: string;
+  newerLabel: string;
+}
+
+function HistoryEntry({ entry, activeUser }: HistoryEntryProps) {
   return (
     <article className="history-entry">
       {entry.prompt ? (
@@ -28,7 +50,7 @@ export default function OutputPanel({
   canShowNewer,
   olderLabel,
   newerLabel,
-}) {
+}: OutputPanelProps) {
   return (
     <section className="console-output-panel">
       <div className="console-output-header">

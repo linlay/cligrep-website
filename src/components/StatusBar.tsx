@@ -1,6 +1,14 @@
 import { useTranslation } from "react-i18next";
 
-export default function StatusBar({ theme, resolvedTheme, mode, busy, lang }) {
+interface StatusBarProps {
+  theme: string;
+  resolvedTheme: string;
+  mode: string;
+  busy: boolean;
+  lang: string;
+}
+
+export default function StatusBar({ theme, resolvedTheme, mode, busy, lang }: StatusBarProps) {
   const { t } = useTranslation();
 
   return (

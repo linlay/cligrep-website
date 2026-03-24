@@ -1,5 +1,28 @@
-import { useEffect } from "react";
-import { getQuickSlotIndex } from "../lib/commands.js";
+import { useEffect, type RefObject } from "react";
+import { getQuickSlotIndex } from "../lib/commands";
+import type { CliView } from "../types";
+
+interface UseKeyboardShortcutsOptions {
+  mode: string;
+  inputRef: RefObject<HTMLInputElement>;
+  currentCli: CliView | null;
+  isAnonymous: boolean;
+  showPalette: boolean;
+  onCycleTheme: () => void;
+  onClearTerminal: () => void;
+  onToggleLanguage: () => void;
+  onShowPalette: () => void;
+  onClosePalette: () => void;
+  onShowHelp: () => void;
+  onClearInput: () => void;
+  onToggleFavorite: () => void;
+  onStartComment: () => void;
+  onEscape: () => void;
+  onFocusInput: () => void;
+  onApplyQuickSlot?: (index: number) => void;
+  isPrintableKey: (event: KeyboardEvent) => boolean;
+  inlineMode: boolean;
+}
 
 export function useKeyboardShortcuts({
   mode,
@@ -21,9 +44,9 @@ export function useKeyboardShortcuts({
   onApplyQuickSlot,
   isPrintableKey,
   inlineMode,
-}) {
+}: UseKeyboardShortcutsOptions) {
   useEffect(() => {
-    function onKeyDown(event) {
+    function onKeyDown(event: KeyboardEvent) {
       // Don't intercept when command palette is open (it manages its own keys)
       if (showPalette) return;
 

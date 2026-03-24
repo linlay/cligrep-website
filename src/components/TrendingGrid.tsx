@@ -1,9 +1,22 @@
 import { useTranslation } from "react-i18next";
-import { formatCliDate, sourceTypeLabel } from "../lib/cliView.js";
+import { formatCliDate, sourceTypeLabel } from "../lib/cliView";
+import type { CliView, HomeFeed, HomeFeedSort } from "../types";
 
-const SORTS = ["favorites", "newest", "runs"];
+const SORTS: HomeFeedSort[] = ["favorites", "newest", "runs"];
 
-export default function TrendingGrid({ feed, onSelectCli, onSortChange }) {
+interface TrendingGridProps {
+  feed: HomeFeed;
+  onSelectCli: (cli: CliView) => void;
+  onSortChange: (sort: HomeFeedSort) => void;
+}
+
+interface CliCardProps {
+  cli: CliView;
+  locale: string;
+  onSelect: () => void;
+}
+
+export default function TrendingGrid({ feed, onSelectCli, onSortChange }: TrendingGridProps) {
   const { t, i18n } = useTranslation();
 
   return (
@@ -39,7 +52,7 @@ export default function TrendingGrid({ feed, onSelectCli, onSortChange }) {
   );
 }
 
-function CliCard({ cli, locale, onSelect }) {
+function CliCard({ cli, locale, onSelect }: CliCardProps) {
   const { t } = useTranslation();
   const createdAt = formatCliDate(cli.createdAt, locale) ?? t("meta_na");
   const sourceLabel = sourceTypeLabel(cli.sourceType, t);
@@ -47,7 +60,7 @@ function CliCard({ cli, locale, onSelect }) {
     `[${cli.environmentKind}]`,
     `[${sourceLabel}]`,
     cli.executable ? null : `[${t("tag_help_only")}]`,
-  ].filter(Boolean);
+  ].filter((tag): tag is string => Boolean(tag));
 
   return (
     <button type="button" className="cli-card cli-card-compact" onClick={onSelect}>

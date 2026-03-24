@@ -1,13 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-export default function CommandPalette({ onClose, onExecute }) {
+interface PaletteCommand {
+  name: string;
+  desc: string;
+}
+
+interface CommandPaletteProps {
+  onClose: () => void;
+  onExecute: (command: string) => void;
+}
+
+export default function CommandPalette({ onClose, onExecute }: CommandPaletteProps) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const inputRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const commands = [
+  const commands: PaletteCommand[] = [
     { name: "theme dark", desc: "Switch to dark theme" },
     { name: "theme light", desc: "Switch to light theme" },
     { name: "theme system", desc: "Switch to system theme" },
@@ -31,7 +41,7 @@ export default function CommandPalette({ onClose, onExecute }) {
     setSelectedIndex(0);
   }, [filter]);
 
-  function onKeyDown(event) {
+  function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Escape") {
       event.preventDefault();
       onClose();
@@ -66,7 +76,7 @@ export default function CommandPalette({ onClose, onExecute }) {
           onChange={(e) => setFilter(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={t("cmd_palette_placeholder")}
-          spellCheck="false"
+          spellCheck={false}
         />
         <div className="command-palette-list">
           {filtered.map((cmd, i) => (

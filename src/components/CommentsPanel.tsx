@@ -1,6 +1,12 @@
 import { useTranslation } from "react-i18next";
+import type { CliComment } from "../types";
 
-export default function CommentsPanel({ comments, onComment }) {
+interface CommentsPanelProps {
+  comments: CliComment[];
+  onComment: () => void;
+}
+
+export default function CommentsPanel({ comments, onComment }: CommentsPanelProps) {
   const { t } = useTranslation();
 
   return (
