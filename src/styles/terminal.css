@@ -50,8 +50,7 @@ button {
 }
 
 .site-header,
-.main-grid,
-.command-palette-overlay {
+.main-grid {
   position: relative;
   z-index: 1;
 }
@@ -302,6 +301,7 @@ button {
 .command-palette-overlay {
   position: fixed;
   inset: 0;
+  z-index: 80;
   display: flex;
   align-items: center;
   justify-content: center;
