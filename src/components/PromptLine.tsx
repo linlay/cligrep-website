@@ -1,5 +1,6 @@
 import { forwardRef, type ForwardedRef, type KeyboardEvent } from "react";
 import type { User } from "../types";
+import { displayIdentity } from "../lib/session";
 
 interface PromptLineProps {
   activeUser: User;
@@ -15,9 +16,11 @@ const PromptLine = forwardRef(function PromptLine(
   { activeUser, commandPrefix, inputValue, onInputChange, onKeyDown, currentModeTheme, placeholder }: PromptLineProps,
   ref: ForwardedRef<HTMLInputElement>,
 ) {
+  const identity = displayIdentity(activeUser);
+
   return (
     <label className="prompt-line">
-      <span className="prompt-user">{activeUser.username}</span>
+      <span className="prompt-user">{identity}</span>
       <span className="prompt-at">@</span>
       <span className="prompt-ip">{activeUser.ip}</span>
       <span className="prompt-path">:~</span>

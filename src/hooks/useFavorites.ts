@@ -25,11 +25,11 @@ export function useFavorites() {
     return favoriteState[slug] === true;
   }
 
-  async function toggleFavorite(cliSlug: string, userId: number | string): Promise<boolean> {
+  async function toggleFavorite(cliSlug: string): Promise<boolean> {
     const nextActive = !favoriteState[cliSlug];
     await request("/api/v1/favorites", {
       method: "POST",
-      body: JSON.stringify({ userId, cliSlug, active: nextActive }),
+      body: JSON.stringify({ cliSlug, active: nextActive }),
     });
     setFavoriteState((current) => ({ ...current, [cliSlug]: nextActive }));
     return nextActive;

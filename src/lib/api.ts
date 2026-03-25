@@ -19,6 +19,7 @@ export async function request<T = unknown>(path: string, options: RequestInit = 
   }
 
   const response = await fetch(resolveRequestPath(path), {
+    credentials: "include",
     headers,
     ...options,
   });

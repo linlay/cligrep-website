@@ -14,11 +14,16 @@ function readStoredUser(): User | null {
   }
 }
 
+function buildLoginURL() {
+  return "/api/v1/auth/google/start";
+}
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(() => readStoredUser());
+  const [authChecked, setAuthChecked] = useState(false);
 
   const activeUser = user ?? ANONYMOUS_FALLBACK;
-  const isAnonymous = activeUser.username === "anonymous";
+  const isAnonymous = !user || activeUser.username === "anonymous";
 
   useEffect(() => {
     if (user) {
@@ -28,30 +33,45 @@ export function useAuth() {
     }
   }, [user]);
 
-  async function ensureAnonymousSession(): Promise<User | null> {
-    try {
-      const payload = await request<{ user: User }>("/api/v1/auth/mock/anonymous", { method: "POST" });
-      setUser(payload.user);
-      return payload.user;
-    } catch {
-      return null;
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSessionUser() {
+      try {
+        const payload = await request<{ user: User }>("/api/v1/auth/me");
+        if (!cancelled) {
+          setUser(payload.user);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!cancelled && /401/.test(message) === false && /unauthorized/i.test(message) === false) {
+          setUser(null);
+        }
+        if (!cancelled && (/401/.test(message) || /unauthorized/i.test(message))) {
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setAuthChecked(true);
+        }
+      }
     }
+
+    void loadSessionUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function login(): void {
+    window.location.assign(buildLoginURL());
   }
 
-  async function login(username: string): Promise<User> {
-    const payload = await request<{ user: User }>("/api/v1/auth/mock/login", {
-      method: "POST",
-      body: JSON.stringify({ username: username || "operator" }),
-    });
-    setUser(payload.user);
-    return payload.user;
+  async function logout(): Promise<void> {
+    await request("/api/v1/auth/logout", { method: "POST" });
+    setUser(null);
   }
 
-  async function logout(): Promise<User | null> {
-    await request("/api/v1/auth/mock/logout", { method: "POST" });
-    const u = await ensureAnonymousSession();
-    return u;
-  }
-
-  return { user, setUser, activeUser, isAnonymous, ensureAnonymousSession, login, logout };
+  return { user, setUser, activeUser, isAnonymous, authChecked, login, logout };
 }

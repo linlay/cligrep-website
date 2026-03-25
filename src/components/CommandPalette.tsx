@@ -23,8 +23,8 @@ export default function CommandPalette({ onClose, onExecute }: CommandPalettePro
     { name: "theme system", desc: "Switch to system theme" },
     { name: "lang en", desc: "Switch to English" },
     { name: "lang zh", desc: "Switch to Chinese" },
-    { name: "login", desc: "Mock login" },
-    { name: "logout", desc: "Log out" },
+    { name: "login", desc: "Sign in with Google" },
+    { name: "logout", desc: "Sign out of session" },
     { name: "clear", desc: "Clear terminal" },
     { name: "help", desc: "Show help" },
   ];

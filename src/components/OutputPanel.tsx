@@ -1,4 +1,5 @@
 import type { HistoryEntry, User } from "../types";
+import { displayIdentity } from "../lib/session";
 
 interface HistoryEntryProps {
   entry: HistoryEntry;
@@ -21,11 +22,13 @@ interface OutputPanelProps {
 }
 
 function HistoryEntry({ entry, activeUser }: HistoryEntryProps) {
+  const identity = displayIdentity(activeUser);
+
   return (
     <article className="history-entry">
       {entry.prompt ? (
         <div className="history-prompt-echo">
-          <span className="echo-user">{activeUser.username}</span>
+          <span className="echo-user">{identity}</span>
           <span className="echo-at">@</span>
           <span className="echo-ip">{activeUser.ip}</span>
           <span className="echo-path">:~$</span>

@@ -109,14 +109,49 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function resolveAuthErrorMessage(
+  t: (key: string) => string,
+  authError: string,
+  authReason: string,
+): string {
+  if (authError === "missing_state") {
+    return t("auth_error_missing_state");
+  }
+  if (authError === "invalid_state") {
+    return t("auth_error_invalid_state");
+  }
+  if (authError === "missing_code") {
+    return t("auth_error_missing_code");
+  }
+  if (authError !== "google_callback_failed") {
+    return t("auth_error_google_oauth");
+  }
+
+  switch (authReason) {
+    case "google_token_exchange_failed":
+      return t("auth_reason_google_token_exchange_failed");
+    case "google_id_token_missing":
+      return t("auth_reason_google_id_token_missing");
+    case "google_id_token_invalid":
+      return t("auth_reason_google_id_token_invalid");
+    case "google_jwks_fetch_failed":
+      return t("auth_reason_google_jwks_fetch_failed");
+    case "google_user_upsert_failed":
+      return t("auth_reason_google_user_upsert_failed");
+    case "google_session_create_failed":
+      return t("auth_reason_google_session_create_failed");
+    default:
+      return t("auth_error_google_callback_failed");
+  }
+}
+
 function App() {
   const { t, i18n } = useTranslation();
   const { theme, setTheme, resolvedTheme, cycleTheme } = useTheme();
   const {
-    user,
+    setUser,
     activeUser,
     isAnonymous,
-    ensureAnonymousSession,
     login,
     logout,
   } = useAuth();
@@ -160,6 +195,7 @@ function App() {
   const selectedCommand = currentCli ?? activeBuiltinCli;
   const currentModeTheme = environmentTone(selectedCommand.environmentKind);
   const isFavoriteActive = currentCli ? isFavorite(currentCli.slug) : false;
+  const sessionLabel = activeUser.displayName || activeUser.username;
   const currentOutputEntry = useMemo(
     () => historyBuffer[historyBuffer.length - 1 - historyOffset] ?? null,
     [historyBuffer, historyOffset],
@@ -267,10 +303,26 @@ function App() {
     setHistoryOffset(0);
     setStatusMessage(t("status_ready"));
     void loadHomepage("favorites");
-    if (!user) {
-      void ensureAnonymousSession();
-    }
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authError = params.get("authError")?.trim() ?? "";
+    if (!authError) {
+      return;
+    }
+
+    const authReason = params.get("authReason")?.trim() ?? "";
+    const message = resolveAuthErrorMessage(t, authError, authReason);
+    setErrorMessage(message);
+    setStatusMessage(message);
+
+    params.delete("authError");
+    params.delete("authReason");
+    const nextQuery = params.toString();
+    const nextURL = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", nextURL);
+  }, [t]);
 
   useEffect(() => {
     if (inlineMode !== "none") {
@@ -435,24 +487,30 @@ function App() {
 
   const handleHeaderLogout = useCallback(async () => {
     try {
-      const anonymousUser = await logout();
-      if (anonymousUser) {
-        setStatusMessage(t("status_logged_out"));
-      }
+      await logout();
+      setStatusMessage(t("status_logged_out"));
     } catch (error) {
       setErrorMessage(toErrorMessage(error));
     }
   }, [logout, t]);
 
+  const beginGoogleLogin = useCallback(() => {
+    appendToBuffer("login", t("login_redirecting"), true, {
+      modeLabel: "WEBSITE",
+    });
+    setStatusMessage(t("login_redirecting"));
+    login();
+  }, [login, t]);
+
   const handleToggleFavorite = useCallback(async () => {
     if (!currentCli) return;
-    if (isAnonymous || !user?.id) {
-      startLoginPrompt();
+    if (isAnonymous) {
+      beginGoogleLogin();
       return;
     }
 
     try {
-      const nextActive = await toggleFavorite(currentCli.slug, user.id);
+      const nextActive = await toggleFavorite(currentCli.slug);
       await loadCliDetail(currentCli.slug);
       await loadHomepage(homeFeed.sort || "favorites");
       setStatusMessage(
@@ -471,13 +529,13 @@ function App() {
     loadHomepage,
     t,
     toggleFavorite,
-    user,
+    beginGoogleLogin,
   ]);
 
   const handleStartComment = useCallback(() => {
     if (!currentCli) return;
-    if (isAnonymous || !user?.id) {
-      startLoginPrompt();
+    if (isAnonymous) {
+      beginGoogleLogin();
       return;
     }
 
@@ -489,7 +547,7 @@ function App() {
     );
     setInlineMode("comment-prompt");
     setInlineValue("");
-  }, [currentCli, isAnonymous, t, user]);
+  }, [currentCli, isAnonymous, t, beginGoogleLogin]);
 
   useKeyboardShortcuts({
     mode,
@@ -516,40 +574,8 @@ function App() {
     isPrintableKey,
   });
 
-  function startLoginPrompt() {
-    appendToBuffer("", t("login_prompt"), false, { modeLabel: "WEBSITE" });
-    setInlineMode("login-prompt");
-    setInlineValue("");
-  }
-
-  async function submitInlineLogin() {
-    const username = inlineValue.trim() || "operator";
-    try {
-      const loggedInUser = await login(username);
-      setInlineMode("none");
-      setInlineValue("");
-      appendToBuffer(
-        username,
-        t("status_logged_in", {
-          user: `${loggedInUser.username}@${loggedInUser.ip}`,
-        }),
-        true,
-        { modeLabel: "WEBSITE" },
-      );
-      setStatusMessage(
-        t("status_logged_in", {
-          user: `${loggedInUser.username}@${loggedInUser.ip}`,
-        }),
-      );
-    } catch (error) {
-      setErrorMessage(toErrorMessage(error));
-      setInlineMode("none");
-      setInlineValue("");
-    }
-  }
-
   async function submitInlineComment() {
-    if (!currentCli || !user?.id) return;
+    if (!currentCli || isAnonymous) return;
 
     const body = inlineValue.trim();
     if (!body) {
@@ -562,7 +588,6 @@ function App() {
       await request("/api/v1/comments", {
         method: "POST",
         body: JSON.stringify({
-          userId: user.id,
           cliSlug: currentCli.slug,
           body,
         }),
@@ -645,7 +670,6 @@ function App() {
           body: JSON.stringify({
             cliSlug: currentCli.slug,
             line: trimmed,
-            userId: user?.id,
             themeContext: resolvedTheme,
           }),
         });
@@ -674,7 +698,7 @@ function App() {
           "/api/v1/builtin/exec",
           {
             method: "POST",
-            body: JSON.stringify({ line, userId: user?.id }),
+            body: JSON.stringify({ line }),
           },
         );
         commandHistory.push(trimmed);
@@ -725,7 +749,12 @@ function App() {
     }
 
     if (cmd === "login" && parts.length === 1) {
-      startLoginPrompt();
+      beginGoogleLogin();
+      return true;
+    }
+
+    if (cmd === "logout" && parts.length === 1) {
+      void handleHeaderLogout();
       return true;
     }
 
@@ -737,8 +766,8 @@ function App() {
     response: BuiltinExecResponse,
   ) {
     if (response.action === "logout") {
-      await ensureAnonymousSession();
-      setStatusMessage(t("status_search_done"));
+      setUser(null);
+      setStatusMessage(t("status_logged_out"));
     } else {
       setStatusMessage(response.message || t("status_builtin_executed"));
     }
@@ -921,9 +950,7 @@ function App() {
   function onInlineKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
-      if (inlineMode === "login-prompt") {
-        void submitInlineLogin();
-      } else if (inlineMode === "comment-prompt") {
+      if (inlineMode === "comment-prompt") {
         void submitInlineComment();
       }
     }
@@ -946,13 +973,11 @@ function App() {
   }
 
   function renderPromptArea() {
-    if (inlineMode === "login-prompt" || inlineMode === "comment-prompt") {
+    if (inlineMode === "comment-prompt") {
       return (
         <div className="inline-prompt-line">
           <span className="inline-prompt-label">
-            {inlineMode === "login-prompt"
-              ? t("login_username_prompt")
-              : t("comment_input_prompt")}
+            {t("comment_input_prompt")}
             :
           </span>
           <input
@@ -961,11 +986,7 @@ function App() {
             value={inlineValue}
             onChange={(event) => setInlineValue(event.target.value)}
             onKeyDown={onInlineKeyDown}
-            placeholder={
-              inlineMode === "login-prompt"
-                ? "operator"
-                : "This CLI feels sharp for log triage."
-            }
+            placeholder="This CLI feels sharp for log triage."
             spellCheck={false}
             autoComplete="off"
           />
@@ -1063,10 +1084,10 @@ function App() {
             type="button"
             className="bracket-action-button accent"
             onClick={() =>
-              isAnonymous ? startLoginPrompt() : void handleHeaderLogout()
+              isAnonymous ? beginGoogleLogin() : void handleHeaderLogout()
             }
           >
-            [$ {isAnonymous ? t("session_action_login") : activeUser.username}]
+            [$ {isAnonymous ? t("session_action_login") : sessionLabel}]
           </button>
         </div>
       </header>

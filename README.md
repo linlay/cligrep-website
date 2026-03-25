@@ -45,6 +45,12 @@ FRONTEND_PORT=11801
 - `FRONTEND_PORT`：用于 `compose.yml` 的宿主机端口映射，默认 `11801`。
 - 标准部署路径不需要设置 `VITE_API_BASE`。
 - 当前调用方显式请求 `/api/...` 与 `/healthz`；只有未来新增“未带 `/api` 前缀的相对路径”时，才应让 `VITE_API_BASE` 参与前缀拼接。
+- Google 登录走后端发起与回调，前端不处理 OAuth callback 页面。
+- 本地联调建议统一使用 `127.0.0.1`，并在后端配置：
+  - `CLIGREP_AUTH_GOOGLE_REDIRECT_URL=http://127.0.0.1:5173/api/v1/auth/google/callback`
+  - `CLIGREP_AUTH_GOOGLE_SUCCESS_URL=http://127.0.0.1:5173/`
+  - `CLIGREP_AUTH_GOOGLE_FAILURE_URL=http://127.0.0.1:5173/?authError=google_oauth`
+- Google 控制台 `Authorized redirect URI` 需登记 `http://127.0.0.1:5173/api/v1/auth/google/callback`。
 
 ## 4. 部署
 ### 容器部署
@@ -87,6 +93,7 @@ docker compose -f compose.yml down
 ### 常见排查
 - 页面能打开但数据为空：先确认宿主机后端 `cligrep-server` 已启动，并检查 `http://127.0.0.1:11801/healthz`。
 - 本地开发接口失败：检查 `.env` 中 `VITE_DEV_API_TARGET` 是否指向可访问的后端地址。
+- Google 登录跳转失败：确认前后端没有混用 `localhost` 与 `127.0.0.1`，并检查后端 `.env` 的 `CLIGREP_AUTH_GOOGLE_REDIRECT_URL` 与 Google 控制台登记值完全一致。
 - `docker compose up -d --build` 在 `COPY package.json package-lock.json ./` 失败：说明服务器部署目录缺少 `package-lock.json`，需要重新同步完整仓库后再构建。
 - 容器启动失败：检查宿主机的 `11801` 端口是否被占用，或在 `.env` 中修改 `FRONTEND_PORT`。
 - 修改前端代码后未生效：开发模式使用 `npm run dev`，容器模式需要重新执行 `docker compose -f compose.yml up -d --build`。

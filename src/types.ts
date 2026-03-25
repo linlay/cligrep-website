@@ -4,13 +4,17 @@ export type ThemeOption = "system" | "dark" | "light";
 export type ResolvedTheme = "dark" | "light";
 export type Language = "en" | "zh";
 export type AppMode = "home" | "search-results" | "execution";
-export type InlineMode = "none" | "login-prompt" | "comment-prompt";
+export type InlineMode = "none" | "comment-prompt";
 export type EnvironmentKind = "WEBSITE" | "TEXT" | "SANDBOX";
 export type HomeFeedSort = "favorites" | "newest" | "runs";
 
 export interface User {
   id?: number | string;
   username: string;
+  displayName?: string;
+  email?: string;
+  avatarUrl?: string;
+  authProvider?: string;
   ip: string;
   [key: string]: unknown;
 }
