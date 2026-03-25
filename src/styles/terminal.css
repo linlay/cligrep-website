@@ -147,6 +147,11 @@ button {
   background: color-mix(in srgb, var(--panel) 96%, transparent);
 }
 
+.flat-action-button.danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+}
+
 .main-grid {
   max-width: 1480px;
   width: 100%;
@@ -310,6 +315,43 @@ button {
 
 .info-overlay-body {
   padding: 18px;
+}
+
+.auth-overlay-stack,
+.auth-overlay-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-overlay-note {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.auth-overlay-field {
+  display: grid;
+  gap: 8px;
+}
+
+.auth-overlay-field span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-overlay-input {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-strong) 94%, transparent);
+}
+
+.auth-overlay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .info-copy,

@@ -68,10 +68,64 @@ export function useAuth() {
     window.location.assign(buildLoginURL());
   }
 
+  async function refreshUser(): Promise<User | null> {
+    try {
+      const payload = await request<{ user: User }>("/api/v1/auth/me");
+      setUser(payload.user);
+      return payload.user;
+    } catch {
+      setUser(null);
+      return null;
+    }
+  }
+
+  async function loginLocal(username: string, password: string): Promise<User> {
+    const payload = await request<{ user: User }>("/api/v1/auth/local/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+    setUser(payload.user);
+    return payload.user;
+  }
+
+  async function registerLocal(
+    username: string,
+    password: string,
+    displayName?: string,
+  ): Promise<User> {
+    const payload = await request<{ user: User }>("/api/v1/auth/local/register", {
+      method: "POST",
+      body: JSON.stringify({ username, password, displayName }),
+    });
+    setUser(payload.user);
+    return payload.user;
+  }
+
+  async function updateDisplayName(displayName: string): Promise<User> {
+    const payload = await request<{ user: User }>("/api/v1/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify({ displayName }),
+    });
+    setUser(payload.user);
+    return payload.user;
+  }
+
   async function logout(): Promise<void> {
     await request("/api/v1/auth/logout", { method: "POST" });
     setUser(null);
   }
 
-  return { user, setUser, activeUser, isAnonymous, authChecked, login, logout };
+  return {
+    user,
+    setUser,
+    activeUser,
+    isAnonymous,
+    authChecked,
+    login,
+    loginLocal,
+    registerLocal,
+    updateDisplayName,
+    refreshUser,
+    logout,
+  };
 }

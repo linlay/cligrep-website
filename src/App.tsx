@@ -33,12 +33,14 @@ import DetailPanel from "./components/DetailPanel";
 import CommentsPanel from "./components/CommentsPanel";
 import CommandPalette from "./components/CommandPalette";
 import InfoOverlay from "./components/InfoOverlay";
+import AuthOverlay from "./components/AuthOverlay";
 import {
   buildBuiltinLine,
   commandIdentity,
   environmentTone,
   normalizeCliView,
 } from "./lib/cliView";
+import { displayIdentity } from "./lib/session";
 import type {
   AppMode,
   BuiltinExecResponse,
@@ -152,7 +154,11 @@ function App() {
     setUser,
     activeUser,
     isAnonymous,
+    loginLocal,
+    registerLocal,
+    updateDisplayName,
     login,
+    refreshUser,
     logout,
   } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -186,6 +192,11 @@ function App() {
   const [typedBrand, setTypedBrand] = useState(BRAND_TEXT);
   const [isBrandTyping, setIsBrandTyping] = useState(false);
   const [infoPanel, setInfoPanel] = useState<InfoPanel | null>(null);
+  const [authOverlayMode, setAuthOverlayMode] = useState<
+    "none" | "login" | "register" | "profile"
+  >("none");
+  const [authOverlayBusy, setAuthOverlayBusy] = useState(false);
+  const [authOverlayError, setAuthOverlayError] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
   const inlineRef = useRef<HTMLInputElement>(null);
@@ -195,7 +206,7 @@ function App() {
   const selectedCommand = currentCli ?? activeBuiltinCli;
   const currentModeTheme = environmentTone(selectedCommand.environmentKind);
   const isFavoriteActive = currentCli ? isFavorite(currentCli.slug) : false;
-  const sessionLabel = activeUser.displayName || activeUser.username;
+  const sessionLabel = displayIdentity(activeUser);
   const currentOutputEntry = useMemo(
     () => historyBuffer[historyBuffer.length - 1 - historyOffset] ?? null,
     [historyBuffer, historyOffset],
@@ -488,19 +499,85 @@ function App() {
   const handleHeaderLogout = useCallback(async () => {
     try {
       await logout();
+      setAuthOverlayMode("none");
+      setAuthOverlayError("");
       setStatusMessage(t("status_logged_out"));
     } catch (error) {
       setErrorMessage(toErrorMessage(error));
     }
   }, [logout, t]);
 
+  const openAuthOverlay = useCallback(
+    (mode: "login" | "register" | "profile") => {
+      setAuthOverlayError("");
+      setAuthOverlayMode(mode);
+    },
+    [],
+  );
+
   const beginGoogleLogin = useCallback(() => {
+    setAuthOverlayMode("none");
+    setAuthOverlayError("");
     appendToBuffer("login", t("login_redirecting"), true, {
       modeLabel: "WEBSITE",
     });
     setStatusMessage(t("login_redirecting"));
     login();
   }, [login, t]);
+
+  const handleLocalLogin = useCallback(
+    async (username: string, password: string) => {
+      setAuthOverlayBusy(true);
+      setAuthOverlayError("");
+      try {
+        const user = await loginLocal(username, password);
+        setAuthOverlayMode("none");
+        setStatusMessage(t("status_logged_in", { user: displayIdentity(user) }));
+        await refreshUser();
+      } catch (error) {
+        setAuthOverlayError(toErrorMessage(error));
+      } finally {
+        setAuthOverlayBusy(false);
+      }
+    },
+    [loginLocal, refreshUser, t],
+  );
+
+  const handleLocalRegister = useCallback(
+    async (username: string, password: string, displayName: string) => {
+      setAuthOverlayBusy(true);
+      setAuthOverlayError("");
+      try {
+        const user = await registerLocal(username, password, displayName);
+        setAuthOverlayMode("none");
+        setStatusMessage(t("status_logged_in", { user: displayIdentity(user) }));
+        await refreshUser();
+      } catch (error) {
+        setAuthOverlayError(toErrorMessage(error));
+      } finally {
+        setAuthOverlayBusy(false);
+      }
+    },
+    [refreshUser, registerLocal, t],
+  );
+
+  const handleProfileUpdate = useCallback(
+    async (displayName: string) => {
+      setAuthOverlayBusy(true);
+      setAuthOverlayError("");
+      try {
+        const user = await updateDisplayName(displayName);
+        setAuthOverlayMode("none");
+        setStatusMessage(t("status_profile_updated", { user: displayIdentity(user) }));
+        await refreshUser();
+      } catch (error) {
+        setAuthOverlayError(toErrorMessage(error));
+      } finally {
+        setAuthOverlayBusy(false);
+      }
+    },
+    [refreshUser, t, updateDisplayName],
+  );
 
   const handleToggleFavorite = useCallback(async () => {
     if (!currentCli) return;
@@ -749,12 +826,25 @@ function App() {
     }
 
     if (cmd === "login" && parts.length === 1) {
-      beginGoogleLogin();
+      openAuthOverlay("login");
+      setStatusMessage(t("auth_overlay_login_subtitle"));
       return true;
     }
 
     if (cmd === "logout" && parts.length === 1) {
       void handleHeaderLogout();
+      return true;
+    }
+
+    if (cmd === "register" && parts.length === 1) {
+      openAuthOverlay("register");
+      setStatusMessage(t("auth_overlay_register_subtitle"));
+      return true;
+    }
+
+    if (cmd === "profile" && parts.length === 1 && !isAnonymous) {
+      openAuthOverlay("profile");
+      setStatusMessage(t("auth_overlay_profile_subtitle"));
       return true;
     }
 
@@ -1084,13 +1174,35 @@ function App() {
             type="button"
             className="bracket-action-button accent"
             onClick={() =>
-              isAnonymous ? beginGoogleLogin() : void handleHeaderLogout()
+              isAnonymous ? openAuthOverlay("login") : openAuthOverlay("profile")
             }
           >
             [$ {isAnonymous ? t("session_action_login") : sessionLabel}]
           </button>
         </div>
       </header>
+
+      {authOverlayMode !== "none" ? (
+        <AuthOverlay
+          mode={authOverlayMode}
+          activeUser={activeUser}
+          busy={authOverlayBusy}
+          errorMessage={authOverlayError}
+          onClose={() => {
+            setAuthOverlayMode("none");
+            setAuthOverlayError("");
+          }}
+          onSwitchMode={(mode) => {
+            setAuthOverlayError("");
+            setAuthOverlayMode(mode);
+          }}
+          onGoogleLogin={beginGoogleLogin}
+          onLocalLogin={handleLocalLogin}
+          onLocalRegister={handleLocalRegister}
+          onUpdateDisplayName={handleProfileUpdate}
+          onLogout={handleHeaderLogout}
+        />
+      ) : null}
 
       <main className="main-grid stacked-grid">
         <TerminalWindow
