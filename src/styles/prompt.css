@@ -8,10 +8,12 @@
   border: 1px solid var(--line);
   border-radius: 18px;
   background: color-mix(in srgb, var(--panel-strong) 94%, transparent);
+  text-shadow: 0 0 3px color-mix(in srgb, currentColor 30%, transparent);
 }
 
 .prompt-user {
   color: var(--prompt-user);
+  flex-shrink: 0;
 }
 
 .prompt-at,
@@ -60,6 +62,7 @@
   padding: 0;
   appearance: none;
   -webkit-appearance: none;
+  caret-shape: block;
 }
 
 .command-input.website {

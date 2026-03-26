@@ -37,11 +37,13 @@ npm run build
 
 ```dotenv
 VITE_DEV_API_TARGET=http://127.0.0.1:11802
+VITE_SITE_URL=https://cligrep.com
 FRONTEND_PORT=11801
 ```
 
 说明：
 - `VITE_DEV_API_TARGET`：仅影响 `npm run dev` 的本地代理目标。
+- `VITE_SITE_URL`：用于生成 canonical、Open Graph、Twitter Card、`robots.txt` 与 `sitemap.xml` 的站点根地址。
 - `FRONTEND_PORT`：用于 `compose.yml` 的宿主机端口映射，默认 `11801`。
 - 标准部署路径不需要设置 `VITE_API_BASE`。
 - 当前调用方显式请求 `/api/...` 与 `/healthz`；只有未来新增“未带 `/api` 前缀的相对路径”时，才应让 `VITE_API_BASE` 参与前缀拼接。
