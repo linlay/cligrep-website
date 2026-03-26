@@ -76,6 +76,14 @@ export default function SiteHeader({
       </div>
 
       <div className="site-bracket-actions">
+        <a
+          className="bracket-action-button"
+          href="https://github.com/linlay/cligrep-website"
+          target="_blank"
+          rel="noreferrer"
+        >
+          [github]
+        </a>
         <button
           type="button"
           className="bracket-action-button"

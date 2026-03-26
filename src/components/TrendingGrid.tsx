@@ -25,15 +25,27 @@ export default function TrendingGrid({
 	const { t, i18n } = useTranslation();
 
 	return (
-		<section className="cards-section homepage-cli-section" aria-labelledby="homepage-cli-heading">
+		<section
+			className="cards-section homepage-cli-section"
+			aria-labelledby="homepage-cli-heading"
+		>
 			<div className="cards-toolbar">
 				<div className="cards-toolbar-copy">
-					<h2 id="homepage-cli-heading" className="cards-toolbar-title">
+					<h2
+						id="homepage-cli-heading"
+						className="cards-toolbar-title"
+					>
 						{t("homepage_cli_title")}
 					</h2>
-					<small>
-						{t("homepage_cli_total", { count: feed.total ?? 0 })}
-					</small>
+					{feed.total > 0 && (
+						<small>
+							（
+							{t("homepage_cli_total", {
+								count: feed.total ?? 0,
+							})}
+							）
+						</small>
+					)}
 				</div>
 
 				<div className="cards-sort-row">
@@ -100,22 +112,36 @@ function CliCard({ cli, locale, onSelect }: CliCardProps) {
 					<span />
 				</div>
 				<h3 className="cli-card-title">{cli.command}</h3>
-				<span className="cli-card-stats-inline">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 24 24"
-						fill="#fbbf24"
-						width="0.82rem"
-						height="0.82rem"
-					>
-						<path
-							fillRule="evenodd"
-							d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z"
-							clipRule="evenodd"
-						/>
-					</svg>
-					{cli.favoriteCount}
-				</span>
+				<div style={{ display: "flex", gap: 8 }}>
+					<span className="cli-card-stats-inline">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+							fill="#22c55e"
+							width="0.82rem"
+							height="0.82rem"
+						>
+							<polygon points="5 3 19 12 5 21 5 3" />
+						</svg>
+						{cli.runCount}
+					</span>
+					<span className="cli-card-stats-inline">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+							fill="#fbbf24"
+							width="0.82rem"
+							height="0.82rem"
+						>
+							<path
+								fillRule="evenodd"
+								d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z"
+								clipRule="evenodd"
+							/>
+						</svg>
+						{cli.favoriteCount}
+					</span>
+				</div>
 			</div>
 
 			<div className="cli-card-body compact">
@@ -124,7 +150,7 @@ function CliCard({ cli, locale, onSelect }: CliCardProps) {
 						{avatarLabel}
 					</div>
 					<div className="cli-card-identity-copy">
-						<span className="cli-card-author">{authorLabel}</span>
+						{/* <span className="cli-card-author">{authorLabel}</span> */}
 						{cli.githubUrl ? (
 							<a
 								href={cli.githubUrl}
@@ -133,11 +159,7 @@ function CliCard({ cli, locale, onSelect }: CliCardProps) {
 								rel="noreferrer"
 								onClick={(event) => event.stopPropagation()}
 							>
-								<span
-									style={{ color: "#22c55e", marginRight: 6 }}
-								>
-									from
-								</span>
+								<span style={{ color: "#22c55e" }}>from </span>
 								{githubLabel}
 							</a>
 						) : (
@@ -147,6 +169,8 @@ function CliCard({ cli, locale, onSelect }: CliCardProps) {
 						)}
 					</div>
 				</div>
+				<p className="card-summary">{cli.description}</p>
+
 				<div className="cli-card-tag-row">
 					{tags.map((tag) => (
 						<span key={tag} className="compact-tag">
@@ -157,8 +181,6 @@ function CliCard({ cli, locale, onSelect }: CliCardProps) {
 						<span className="compact-tag">[{cli.license}]</span>
 					) : null}
 				</div>
-
-				<p className="card-summary">{cli.description}</p>
 
 				{/* <div className="compact-meta-grid">
 					<span>{createdAt}</span>
@@ -177,7 +199,7 @@ function CliCard({ cli, locale, onSelect }: CliCardProps) {
 				</div> */}
 			</div>
 
-			<div className="cli-card-footer">
+			{/* <div className="cli-card-footer">
 				<span>{createdAt}</span>
 				<span className="card-runing">
 					<svg
@@ -191,7 +213,7 @@ function CliCard({ cli, locale, onSelect }: CliCardProps) {
 					</svg>
 					{cli.runCount}
 				</span>
-			</div>
+			</div> */}
 		</article>
 	);
 }

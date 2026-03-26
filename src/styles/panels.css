@@ -198,12 +198,17 @@
   justify-content: space-between;
 }
 
-.cards-toolbar-copy,
 .detail-section,
 .detail-metadata-item,
 .status-grid-item {
   display: grid;
   gap: 8px;
+}
+
+.cards-toolbar-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
 }
 
 .cards-toolbar-copy span,
@@ -391,6 +396,7 @@
 
 .compact-tag {
   font-size: 0.7rem;
+  border: none;
 }
 
 .cli-card-footer {
