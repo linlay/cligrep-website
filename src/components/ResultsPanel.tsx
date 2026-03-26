@@ -1,3 +1,4 @@
+import { type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { sourceTypeLabel } from "../lib/cliView";
 import type { CliView } from "../types";
@@ -43,22 +44,44 @@ export default function ResultsPanel({ searchResults, selectedResultIndex, onSel
 
 function ResultRow({ cli, index, isActive, onSelect }: ResultRowProps) {
   const { t } = useTranslation();
+  const githubLabel = cli.githubUrl
+    ? cli.githubUrl.replace(/^https?:\/\/(www\.)?github\.com\//i, "")
+    : "";
+
+  function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect();
+    }
+  }
 
   return (
-    <button
-      type="button"
+    <article
       className={`result-row ${isActive ? "active" : ""}`.trim()}
       onClick={onSelect}
+      onKeyDown={handleKeyDown}
       role="option"
       aria-selected={isActive}
+      tabIndex={0}
     >
       <span className="result-index">[{index + 1}]</span>
       <span className="result-type">{cli.environmentKind}</span>
       <span className="result-slug">{cli.command}</span>
       <span className="result-summary">{cli.description}</span>
       <span className="result-stats">
-        ★ {cli.favoriteCount} / ▶ {cli.runCount} / {sourceTypeLabel(cli.sourceType, t)}
+        <span>★ {cli.favoriteCount} / ▶ {cli.runCount} / {sourceTypeLabel(cli.sourceType, t)}</span>
+        {cli.githubUrl ? (
+          <a
+            href={cli.githubUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="result-github-link"
+            onClick={(event) => event.stopPropagation()}
+          >
+            GitHub: {githubLabel}
+          </a>
+        ) : null}
       </span>
-    </button>
+    </article>
   );
 }

@@ -156,6 +156,22 @@
   letter-spacing: 0.14em;
 }
 
+.result-stats {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
+.result-github-link {
+  color: var(--cli);
+  font-size: 0.76rem;
+  text-decoration: none;
+}
+
+.result-github-link:hover {
+  text-decoration: underline;
+}
+
 .result-slug {
   font-family: var(--font-display);
 }
@@ -382,7 +398,8 @@
 .compact-tag,
 .detail-inline-badge,
 .prompt-command-button,
-.detail-link-row a {
+.detail-link-row a,
+.detail-action-link {
   display: inline-flex;
   align-items: center;
   padding: 6px 10px;
@@ -468,7 +485,8 @@
 }
 
 .action-row button,
-.detail-meta button {
+.detail-meta button,
+.detail-action-link {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 9px 14px;
@@ -479,7 +497,9 @@
 .action-row button:hover,
 .detail-meta button:hover,
 .prompt-command-button:hover,
-.detail-link-row a:hover {
+.detail-link-row a:hover,
+.detail-action-link:hover,
+.prompt-command-button.is-active {
   border-color: var(--cli);
   color: var(--text);
 }
@@ -517,6 +537,43 @@
 .detail-meta {
   justify-content: flex-end;
   padding: 0 18px 18px;
+}
+
+.detail-release-stack,
+.detail-release-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-release-summary span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.detail-download-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.detail-download-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel-strong) 94%, transparent);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.detail-download-card span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.detail-download-card:hover {
+  border-color: var(--cli);
 }
 
 .command-palette {

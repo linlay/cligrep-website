@@ -84,10 +84,33 @@ export interface CliComment {
   body: string;
 }
 
+export interface CliReleaseAsset {
+  fileName?: string;
+  downloadUrl?: string;
+  os?: string;
+  arch?: string;
+  packageKind?: string;
+  checksumUrl?: string;
+  sizeBytes?: number | string | null;
+  [key: string]: unknown;
+}
+
+export interface CliRelease {
+  version?: string;
+  publishedAt?: string;
+  isCurrent?: boolean;
+  sourceKind?: string;
+  sourceUrl?: string;
+  assets?: CliReleaseAsset[];
+  [key: string]: unknown;
+}
+
 export interface CliDetailPayload {
   cli?: CliRecord | null;
   examples?: string[];
   comments?: CliComment[];
+  latestRelease?: CliRelease | null;
+  releases?: CliRelease[];
   [key: string]: unknown;
 }
 
