@@ -2,12 +2,44 @@ import { useEffect, type RefObject } from "react";
 import { getQuickSlotIndex } from "../lib/commands";
 import type { CliView } from "../types";
 
+function isEditableElement(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+    return true;
+  }
+
+  if (!(target instanceof HTMLInputElement)) {
+    return false;
+  }
+
+  return ![
+    "button",
+    "checkbox",
+    "color",
+    "file",
+    "hidden",
+    "image",
+    "radio",
+    "range",
+    "reset",
+    "submit",
+  ].includes(target.type);
+}
+
 interface UseKeyboardShortcutsOptions {
   mode: string;
   inputRef: RefObject<HTMLInputElement>;
   currentCli: CliView | null;
   isAnonymous: boolean;
   showPalette: boolean;
+  dialogOpen: boolean;
   onCycleTheme: () => void;
   onClearTerminal: () => void;
   onToggleLanguage: () => void;
@@ -30,6 +62,7 @@ export function useKeyboardShortcuts({
   currentCli,
   isAnonymous,
   showPalette,
+  dialogOpen,
   onCycleTheme,
   onClearTerminal,
   onToggleLanguage,
@@ -47,6 +80,8 @@ export function useKeyboardShortcuts({
 }: UseKeyboardShortcutsOptions) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      const targetIsEditable = isEditableElement(event.target);
+
       // Don't intercept when command palette is open (it manages its own keys)
       if (showPalette) return;
 
@@ -108,6 +143,11 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // Leave modal/forms in control of text entry and local shortcuts.
+      if (dialogOpen || targetIsEditable) {
+        return;
+      }
+
       const quickSlotIndex = getQuickSlotIndex(event);
       if (quickSlotIndex !== null) {
         event.preventDefault();
@@ -124,7 +164,7 @@ export function useKeyboardShortcuts({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
-    mode, currentCli, isAnonymous, showPalette, inlineMode,
+    mode, currentCli, isAnonymous, showPalette, dialogOpen, inlineMode,
     onCycleTheme, onClearTerminal, onToggleLanguage, onShowPalette,
     onClosePalette, onShowHelp, onClearInput, onToggleFavorite,
     onStartComment, onEscape, onFocusInput, isPrintableKey,

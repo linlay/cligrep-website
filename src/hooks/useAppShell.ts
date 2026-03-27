@@ -63,6 +63,10 @@ interface UseAppShellOptions {
   i18n: I18nLike;
 }
 
+interface CliSearchResponse {
+  items?: CliRecord[];
+}
+
 export function useAppShell({ t, i18n }: UseAppShellOptions) {
   const { theme, setTheme, resolvedTheme, cycleTheme } = useTheme();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -136,6 +140,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     isAnonymous,
     sessionLabel,
     authOverlayProps,
+    closeAuthOverlay,
     openAuthOverlay,
     openSessionOverlay,
     beginGoogleLogin,
@@ -146,6 +151,21 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     setStatusMessage,
     setErrorMessage,
   });
+
+  function syncCommandParam(command: string | null) {
+    const params = new URLSearchParams(window.location.search);
+    const nextCommand = String(command ?? "").trim();
+
+    if (nextCommand) {
+      params.set("cmd", nextCommand);
+    } else {
+      params.delete("cmd");
+    }
+
+    const nextQuery = params.toString();
+    const nextURL = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", nextURL);
+  }
 
   const loadHomepage = useCallback(
     async (sort: HomeFeedSort = homeFeed.sort || "favorites") => {
@@ -172,6 +192,80 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     }
   }, []);
 
+  function selectCli(rawCli: CliRecord | CliView) {
+    const cli = normalizeCliView(rawCli);
+    if (!cli) return;
+
+    setSelectedResultIndex(0);
+    setHistoryOffset(0);
+
+    if (cli.environmentKind === "WEBSITE") {
+      const nextBuiltin: CliView = {
+        ...cli,
+        promptCommands: resolveShortcutCommands(cli, null, []),
+      };
+      syncCommandParam(null);
+      setActiveBuiltinCli(nextBuiltin);
+      setCurrentCli(null);
+      setMode("execution");
+      setDetail(null);
+      setInputValue("");
+      setHints(nextBuiltin.promptCommands);
+      setStatusMessage(t("status_builtin_selected"));
+      return;
+    }
+
+    syncCommandParam(cli.command);
+    setCurrentCli(cli);
+    setMode("execution");
+    setDetail(null);
+    setInputValue("");
+    setHints(resolveShortcutCommands(cli, null, []));
+    setStatusMessage(t("status_cli_selected", { name: cli.command }));
+    appendToBuffer(
+      "",
+      [t("selected_cli", { name: cli.command }), "", cli.description].join(
+        "\n",
+      ),
+      false,
+      {
+        modeLabel: cli.environmentKind,
+      },
+    );
+    void loadCliDetail(cli.slug);
+  }
+
+  async function hydrateCliFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const requestedCommand = params.get("cmd")?.trim() ?? "";
+    if (!requestedCommand) {
+      return;
+    }
+
+    try {
+      const payload = await request<CliSearchResponse | CliRecord[]>(
+        `/api/v1/clis/search?q=${encodeURIComponent(requestedCommand)}`,
+      );
+      const items = Array.isArray(payload) ? payload : payload.items ?? [];
+      const candidates = normalizeCliList(items);
+      const normalizedCommand = requestedCommand.toLowerCase();
+      const matchedCli = candidates.find((cli) =>
+        [
+          cli.command,
+          cli.displayName,
+          cli.slug,
+          cli.originalCommand,
+        ].some((value) => value.trim().toLowerCase() === normalizedCommand),
+      );
+
+      if (matchedCli) {
+        selectCli(matchedCli);
+      }
+    } catch (error) {
+      setErrorMessage(toErrorMessage(error));
+    }
+  }
+
   useEffect(() => {
     setHistoryBuffer([
       buildHistoryEntry("", buildMotd(t), false, { modeLabel: "WEBSITE" }),
@@ -179,6 +273,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     setHistoryOffset(0);
     setStatusMessage(t("status_ready"));
     void loadHomepage("favorites");
+    void hydrateCliFromUrl();
   }, []);
 
   useEffect(() => {
@@ -226,6 +321,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
   );
 
   const resetToHome = useCallback(async () => {
+    syncCommandParam(null);
     setMode("home");
     setCurrentCli(null);
     setActiveBuiltinCli(DEFAULT_WEBSITE_COMMAND);
@@ -248,6 +344,11 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
   }, []);
 
   const handleEscape = useCallback(() => {
+    if (authOverlayProps) {
+      closeAuthOverlay();
+      return;
+    }
+
     if (infoPanel) {
       setInfoPanel(null);
       return;
@@ -264,6 +365,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
 
     if (mode === "execution") {
       if (searchResults.length > 0) {
+        syncCommandParam(null);
         setMode("search-results");
         setCurrentCli(null);
         setDetail(null);
@@ -279,6 +381,8 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
       void resetToHome();
     }
   }, [
+    authOverlayProps,
+    closeAuthOverlay,
     appendToBuffer,
     infoPanel,
     inlineMode,
@@ -385,6 +489,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     currentCli,
     isAnonymous,
     showPalette,
+    dialogOpen: Boolean(authOverlayProps || infoPanel),
     inlineMode: inlineMode !== "none",
     onCycleTheme: cycleTheme,
     onClearTerminal: handleClearTerminal,
@@ -615,6 +720,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     setHints((response.hints ?? []).slice(0, 3));
 
     if (response.sessionState === "home") {
+      syncCommandParam(null);
       setMode("home");
       setCurrentCli(null);
       setActiveBuiltinCli(DEFAULT_WEBSITE_COMMAND);
@@ -629,6 +735,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     }
 
     if (response.sessionState === "search-results") {
+      syncCommandParam(null);
       setMode("search-results");
       setCurrentCli(null);
       setActiveBuiltinCli(DEFAULT_WEBSITE_COMMAND);
@@ -644,53 +751,13 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
       return;
     }
 
+    syncCommandParam(null);
     setMode("execution");
     setCurrentCli(null);
     appendToBuffer(originalInput, formatBuiltinExecution(response), true, {
       durationMs: response.execution?.durationMs ?? 0,
       modeLabel: "WEBSITE",
     });
-  }
-
-  function selectCli(rawCli: CliRecord | CliView) {
-    const cli = normalizeCliView(rawCli);
-    if (!cli) return;
-
-    setSelectedResultIndex(0);
-    setHistoryOffset(0);
-
-    if (cli.environmentKind === "WEBSITE") {
-      const nextBuiltin: CliView = {
-        ...cli,
-        promptCommands: resolveShortcutCommands(cli, null, []),
-      };
-      setActiveBuiltinCli(nextBuiltin);
-      setCurrentCli(null);
-      setMode("execution");
-      setDetail(null);
-      setInputValue("");
-      setHints(nextBuiltin.promptCommands);
-      setStatusMessage(t("status_builtin_selected"));
-      return;
-    }
-
-    setCurrentCli(cli);
-    setMode("execution");
-    setDetail(null);
-    setInputValue("");
-    setHints(resolveShortcutCommands(cli, null, []));
-    setStatusMessage(t("status_cli_selected", { name: cli.command }));
-    appendToBuffer(
-      "",
-      [t("selected_cli", { name: cli.command }), "", cli.description].join(
-        "\n",
-      ),
-      false,
-      {
-        modeLabel: cli.environmentKind,
-      },
-    );
-    void loadCliDetail(cli.slug);
   }
 
   function applyQuickSlot(index: number) {

@@ -82,6 +82,7 @@ export default function AuthOverlay({
 								onChange={(event) =>
 									setUsername(event.target.value)
 								}
+								autoFocus
 								autoComplete="username"
 								disabled={busy}
 							/>
@@ -97,6 +98,7 @@ export default function AuthOverlay({
 								onChange={(event) =>
 									setDisplayName(event.target.value)
 								}
+								autoFocus={mode === "profile"}
 								autoComplete="nickname"
 								disabled={busy}
 							/>

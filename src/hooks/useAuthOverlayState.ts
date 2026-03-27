@@ -167,6 +167,7 @@ export function useAuthOverlayState({
     isAnonymous,
     sessionLabel,
     authOverlayProps,
+    closeAuthOverlay,
     openAuthOverlay,
     openSessionOverlay,
     beginGoogleLogin,
