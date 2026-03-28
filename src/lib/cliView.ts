@@ -45,6 +45,8 @@ export function normalizeCliView(cli: CliRecord | CliView | null | undefined, op
     summary: pickString(cli.summary, cli.description, "") ?? "",
     description: pickString(cli.description, cli.summary, cli.helpText, "") ?? "",
     helpText: cli.helpText ?? "",
+    contentLocale: pickString(cli.contentLocale, "en") ?? "en",
+    availableLocales: asArray(cli.availableLocales).length > 0 ? asArray(cli.availableLocales) : ["en"],
     tags: asArray(cli.tags),
     version: pickString(versionText, cli.version, "N/A") ?? "N/A",
     runtimeImage: pickString(cli.runtimeImage, "") ?? "",
@@ -74,6 +76,23 @@ export function formatCliDate(value: string, locale: string): string | null {
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+}
+
+export function formatCliDateTime(value: string, locale: string, timeZone?: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const options: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  };
+  if (timeZone) {
+    options.timeZone = timeZone;
+  }
+  return new Intl.DateTimeFormat(locale, options).format(date);
 }
 
 export function sourceTypeLabel(sourceType: string, t: (key: string) => string): string {

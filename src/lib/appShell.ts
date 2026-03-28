@@ -11,22 +11,6 @@ export const BRAND_TEXT = "CLI GREP";
 export const BRAND_TYPING_INTERVAL_MS = 15000;
 export const BRAND_TYPING_STEP_MS = 120;
 
-export const DEFAULT_WEBSITE_COMMAND = normalizeCliView({
-  slug: "builtin-grep",
-  command: "grep",
-  displayName: "grep",
-  summary: "Search the CLI GREP registry from the website command line.",
-  description: "Search the CLI GREP registry from the website command line.",
-  helpText: "Search indexed commands by keyword, tag, summary, or help text.",
-  environmentKind: "WEBSITE",
-  sourceType: "website_builtin",
-  originalCommand: "grep",
-  executable: true,
-  promptCommands: ["ripgrep"],
-  versionText: "website builtin",
-  createdAt: "2026-01-01T00:00:00Z",
-})!;
-
 const BUILTIN_SHORTCUTS: Record<string, string[]> = {
   "builtin-grep": ["ripgrep"],
   "builtin-create": [
@@ -122,8 +106,28 @@ export function buildMotd(t: TranslateFn): string {
   ].join("\n");
 }
 
+export function buildDefaultWebsiteCommand(t: TranslateFn): CliView {
+  return normalizeCliView({
+    slug: "builtin-grep",
+    command: "grep",
+    displayName: "grep",
+    summary: t("builtin_default_summary"),
+    description: t("builtin_default_summary"),
+    helpText: t("builtin_default_help"),
+    contentLocale: "en",
+    availableLocales: ["en", "zh"],
+    environmentKind: "WEBSITE",
+    sourceType: "website_builtin",
+    originalCommand: "grep",
+    executable: true,
+    promptCommands: ["ripgrep"],
+    versionText: t("builtin_default_version"),
+    createdAt: "2026-01-01T00:00:00Z",
+  })!;
+}
+
 export function resolveBuiltinShortcuts(slug: string): string[] {
-  return BUILTIN_SHORTCUTS[slug] ?? DEFAULT_WEBSITE_COMMAND.promptCommands;
+  return BUILTIN_SHORTCUTS[slug] ?? BUILTIN_SHORTCUTS["builtin-grep"];
 }
 
 export function resolveShortcutCommands(
@@ -148,13 +152,13 @@ export function resolveShortcutCommands(
   return hints.slice(0, 3);
 }
 
-export function buildTextCommandOutput(cli: CliView): string {
+export function buildTextCommandOutput(cli: CliView, t: TranslateFn): string {
   const sections = [
     cli.helpText || cli.description,
     "",
-    `environment: ${cli.environmentKind}`,
-    `source: ${cli.sourceType}`,
-    "executable: false",
+    `${t("text_output_environment")}: ${cli.environmentKind}`,
+    `${t("text_output_source")}: ${cli.sourceType}`,
+    `${t("text_output_executable")}: false`,
   ];
   return sections.join("\n");
 }

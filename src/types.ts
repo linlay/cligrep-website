@@ -27,6 +27,8 @@ export interface CliRecord {
   summary?: string;
   description?: string;
   helpText?: string;
+  contentLocale?: string;
+  availableLocales?: string[];
   tags?: unknown;
   version?: string;
   versionText?: string;
@@ -58,6 +60,8 @@ export interface CliView {
   summary: string;
   description: string;
   helpText: string;
+  contentLocale: string;
+  availableLocales: string[];
   tags: string[];
   version: string;
   runtimeImage: string;

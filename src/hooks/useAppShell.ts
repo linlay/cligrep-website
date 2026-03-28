@@ -26,7 +26,7 @@ import {
   normalizeCliView,
 } from "../lib/cliView";
 import {
-  DEFAULT_WEBSITE_COMMAND,
+  buildDefaultWebsiteCommand,
   buildMotd,
   buildTextCommandOutput,
   isWebsiteBuiltinCli,
@@ -68,6 +68,7 @@ interface CliSearchResponse {
 }
 
 export function useAppShell({ t, i18n }: UseAppShellOptions) {
+  const defaultWebsiteCommand = useMemo(() => buildDefaultWebsiteCommand(t), [t]);
   const { theme, setTheme, resolvedTheme, cycleTheme } = useTheme();
   const { isFavorite, toggleFavorite } = useFavorites();
   const commandHistory = useCommandHistory();
@@ -97,12 +98,12 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
   const [selectedResultIndex, setSelectedResultIndex] = useState(0);
   const [currentCli, setCurrentCli] = useState<CliView | null>(null);
   const [activeBuiltinCli, setActiveBuiltinCli] = useState<CliView>(
-    DEFAULT_WEBSITE_COMMAND,
+    defaultWebsiteCommand,
   );
   const [detail, setDetail] = useState<CliDetailPayload | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [hints, setHints] = useState<string[]>(
-    DEFAULT_WEBSITE_COMMAND.promptCommands,
+    defaultWebsiteCommand.promptCommands,
   );
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -110,6 +111,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
   const [inlineMode, setInlineMode] = useState<InlineMode>("none");
   const [inlineValue, setInlineValue] = useState("");
   const [infoPanel, setInfoPanel] = useState<InfoPanel | null>(null);
+  const [lastSearchQuery, setLastSearchQuery] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
   const inlineRef = useRef<HTMLInputElement>(null);
@@ -192,6 +194,23 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     }
   }, []);
 
+  const runCliSearch = useCallback(async (query: string) => {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) {
+      setSearchResults([]);
+      setLastSearchQuery("");
+      return [];
+    }
+    const payload = await request<CliSearchResponse | CliRecord[]>(
+      `/api/v1/clis/search?q=${encodeURIComponent(normalizedQuery)}`,
+    );
+    const items = Array.isArray(payload) ? payload : payload.items ?? [];
+    const normalized = normalizeCliList(items);
+    setSearchResults(normalized);
+    setLastSearchQuery(normalizedQuery);
+    return normalized;
+  }, []);
+
   function selectCli(rawCli: CliRecord | CliView) {
     const cli = normalizeCliView(rawCli);
     if (!cli) return;
@@ -243,11 +262,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     }
 
     try {
-      const payload = await request<CliSearchResponse | CliRecord[]>(
-        `/api/v1/clis/search?q=${encodeURIComponent(requestedCommand)}`,
-      );
-      const items = Array.isArray(payload) ? payload : payload.items ?? [];
-      const candidates = normalizeCliList(items);
+      const candidates = await runCliSearch(requestedCommand);
       const normalizedCommand = requestedCommand.toLowerCase();
       const matchedCli = candidates.find((cli) =>
         [
@@ -277,6 +292,15 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
   }, []);
 
   useEffect(() => {
+    if (activeBuiltinCli.slug === "builtin-grep") {
+      setActiveBuiltinCli(defaultWebsiteCommand);
+    }
+    if (!currentCli && mode === "home") {
+      setHints(defaultWebsiteCommand.promptCommands);
+    }
+  }, [activeBuiltinCli.slug, currentCli, defaultWebsiteCommand, mode]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const authError = params.get("authError")?.trim() ?? "";
     if (!authError) {
@@ -304,36 +328,53 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
   }, [inlineMode, mode, currentCli]);
 
   const applyLanguage = useCallback(
-    (nextLang: Language, options: ApplyLanguageOptions = {}) => {
+    async (nextLang: Language, options: ApplyLanguageOptions = {}) => {
       const { record = false, command = `lang ${nextLang}` } = options;
-      void i18n.changeLanguage(nextLang);
+      await i18n.changeLanguage(nextLang);
       localStorage.setItem("cligrep-lang", nextLang);
-      const message =
-        nextLang === "zh"
-          ? "语言已切换为中文。"
-          : "Language switched to English.";
+      const nextDefaultCommand = buildDefaultWebsiteCommand(t);
+      const message = t("lang_switched");
+      if (currentCli) {
+        await loadCliDetail(currentCli.slug);
+      } else if (lastSearchQuery) {
+        await runCliSearch(lastSearchQuery);
+      } else if (activeBuiltinCli.environmentKind === "WEBSITE" && activeBuiltinCli.slug !== "builtin-grep") {
+        const payload = await request<CliDetailPayload>(`/api/v1/clis/${activeBuiltinCli.slug}`);
+        const localizedBuiltin = normalizeCliView(payload.cli, {
+          examples: payload.examples ?? [],
+        });
+        if (localizedBuiltin) {
+          setActiveBuiltinCli(localizedBuiltin);
+          setHints(resolveShortcutCommands(localizedBuiltin, payload, []));
+        }
+      } else {
+        setActiveBuiltinCli(nextDefaultCommand);
+        setHints(nextDefaultCommand.promptCommands);
+      }
+      await loadHomepage(homeFeed.sort || "favorites");
       if (record) {
         appendToBuffer(command, message, true, { modeLabel: "WEBSITE" });
       }
       setStatusMessage(message);
     },
-    [appendToBuffer, i18n],
+    [activeBuiltinCli, appendToBuffer, currentCli, homeFeed.sort, i18n, lastSearchQuery, loadCliDetail, loadHomepage, runCliSearch, t],
   );
 
   const resetToHome = useCallback(async () => {
     syncCommandParam(null);
     setMode("home");
     setCurrentCli(null);
-    setActiveBuiltinCli(DEFAULT_WEBSITE_COMMAND);
+    setActiveBuiltinCli(defaultWebsiteCommand);
     setDetail(null);
     setSearchResults([]);
+    setLastSearchQuery("");
     setSelectedResultIndex(0);
     setInputValue("");
-    setHints(DEFAULT_WEBSITE_COMMAND.promptCommands);
+    setHints(defaultWebsiteCommand.promptCommands);
     setStatusMessage(t("status_ready"));
     await loadHomepage(homeFeed.sort || "favorites");
     requestAnimationFrame(() => inputRef.current?.focus());
-  }, [homeFeed.sort, loadHomepage, t]);
+  }, [defaultWebsiteCommand, homeFeed.sort, loadHomepage, t]);
 
   const openDocsPanel = useCallback(() => {
     setInfoPanel({ kind: "docs" });
@@ -369,7 +410,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
         setMode("search-results");
         setCurrentCli(null);
         setDetail(null);
-        setActiveBuiltinCli(DEFAULT_WEBSITE_COMMAND);
+        setActiveBuiltinCli(defaultWebsiteCommand);
         setStatusMessage(t("status_search_ready"));
       } else {
         void resetToHome();
@@ -387,6 +428,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     infoPanel,
     inlineMode,
     mode,
+    defaultWebsiteCommand,
     resetToHome,
     searchResults.length,
     selectedCommand.environmentKind,
@@ -474,7 +516,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
   }, [appendToBuffer, beginGoogleLogin, currentCli, isAnonymous, t]);
 
   const toggleLanguage = useCallback(() => {
-    applyLanguage(nextLanguage(i18n.language));
+    void applyLanguage(nextLanguage(i18n.language));
   }, [applyLanguage, i18n.language]);
 
   const cycleThemeFromHeader = useCallback(() => {
@@ -494,7 +536,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     onCycleTheme: cycleTheme,
     onClearTerminal: handleClearTerminal,
     onToggleLanguage: useCallback(() => {
-      applyLanguage(nextLanguage(i18n.language), { record: true });
+      void applyLanguage(nextLanguage(i18n.language), { record: true });
     }, [applyLanguage, i18n.language]),
     onShowPalette: useCallback(() => setShowPalette(true), []),
     onClosePalette: useCallback(() => setShowPalette(false), []),
@@ -581,7 +623,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
 
       if (currentCli) {
         if (!currentCli.executable || currentCli.environmentKind === "TEXT") {
-          appendToBuffer(trimmed, buildTextCommandOutput(currentCli), true, {
+          appendToBuffer(trimmed, buildTextCommandOutput(currentCli, t), true, {
             durationMs: 0,
             modeLabel: "TEXT",
           });
@@ -636,6 +678,9 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
           },
         );
         commandHistory.push(trimmed);
+        if (line.startsWith("grep ")) {
+          setLastSearchQuery(trimmed);
+        }
         await applyBuiltinResponse(trimmed, response);
       }
 
@@ -671,7 +716,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     if (cmd === "lang") {
       const arg = parts[1]?.toLowerCase();
       if (arg === "en" || arg === "zh") {
-        applyLanguage(arg, { record: true, command: trimmed });
+        void applyLanguage(arg, { record: true, command: trimmed });
         return true;
       }
     }
@@ -723,9 +768,10 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
       syncCommandParam(null);
       setMode("home");
       setCurrentCli(null);
-      setActiveBuiltinCli(DEFAULT_WEBSITE_COMMAND);
+      setActiveBuiltinCli(defaultWebsiteCommand);
       setDetail(null);
       setSearchResults([]);
+      setLastSearchQuery("");
       setSelectedResultIndex(0);
       appendToBuffer(originalInput, buildMotd(t), true, {
         modeLabel: "WEBSITE",
@@ -738,9 +784,10 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
       syncCommandParam(null);
       setMode("search-results");
       setCurrentCli(null);
-      setActiveBuiltinCli(DEFAULT_WEBSITE_COMMAND);
+      setActiveBuiltinCli(defaultWebsiteCommand);
       setDetail(null);
       setSearchResults(normalizeCliList(response.searchResults ?? []));
+      setLastSearchQuery(originalInput.trim());
       setSelectedResultIndex(0);
       appendToBuffer(
         originalInput,
@@ -945,7 +992,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
       placeholderSearch: t("placeholder_search"),
       placeholderArgs: t("placeholder_args"),
       commentInputPromptLabel: t("comment_input_prompt"),
-      commentInputPlaceholder: "This CLI feels sharp for log triage.",
+      commentInputPlaceholder: t("comment_input_placeholder"),
       escapeHintLabel: `ESC ${t("hint_esc_search")}`,
       quickSlotHint: (slot: number, hint: string) =>
         t("quick_slot_hint", { slot, hint }),

@@ -159,7 +159,7 @@ function CliCard({ cli, locale, onSelect }: CliCardProps) {
 								rel="noreferrer"
 								onClick={(event) => event.stopPropagation()}
 							>
-								<span style={{ color: "#22c55e" }}>from </span>
+								<span style={{ color: "#22c55e" }}>{t("card_source_prefix")} </span>
 								{githubLabel}
 							</a>
 						) : (

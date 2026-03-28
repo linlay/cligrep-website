@@ -18,15 +18,15 @@ export default function CommandPalette({ onClose, onExecute }: CommandPalettePro
   const inputRef = useRef<HTMLInputElement>(null);
 
   const commands: PaletteCommand[] = [
-    { name: "theme dark", desc: "Switch to dark theme" },
-    { name: "theme light", desc: "Switch to light theme" },
-    { name: "theme system", desc: "Switch to system theme" },
-    { name: "lang en", desc: "Switch to English" },
-    { name: "lang zh", desc: "Switch to Chinese" },
-    { name: "login", desc: "Sign in with Google" },
-    { name: "logout", desc: "Sign out of session" },
-    { name: "clear", desc: "Clear terminal" },
-    { name: "help", desc: "Show help" },
+    { name: "theme dark", desc: t("cmd_palette_theme_dark") },
+    { name: "theme light", desc: t("cmd_palette_theme_light") },
+    { name: "theme system", desc: t("cmd_palette_theme_system") },
+    { name: "lang en", desc: t("cmd_palette_lang_en") },
+    { name: "lang zh", desc: t("cmd_palette_lang_zh") },
+    { name: "login", desc: t("cmd_palette_login") },
+    { name: "logout", desc: t("cmd_palette_logout") },
+    { name: "clear", desc: t("cmd_palette_clear") },
+    { name: "help", desc: t("cmd_palette_help") },
   ];
 
   const filtered = commands.filter(

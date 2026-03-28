@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { formatCliDateTime } from "../lib/cliView";
 import type { CliComment } from "../types";
 
 interface CommentsPanelProps {
@@ -7,7 +8,8 @@ interface CommentsPanelProps {
 }
 
 export default function CommentsPanel({ comments, onComment }: CommentsPanelProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   return (
     <section className="detail-panel comments-panel">
@@ -25,7 +27,7 @@ export default function CommentsPanel({ comments, onComment }: CommentsPanelProp
               <article key={comment.id} className="comment-item">
                 <header>
                   <span>{comment.username}</span>
-                  <time>{new Date(comment.createdAt).toLocaleString()}</time>
+                  <time>{formatCliDateTime(comment.createdAt, i18n.language, timezone) ?? comment.createdAt}</time>
                 </header>
                 <p>{comment.body}</p>
               </article>

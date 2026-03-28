@@ -28,7 +28,7 @@ export default function ResultsPanel({ searchResults, selectedResultIndex, onSel
   }
 
   return (
-    <section className="results-panel" role="listbox" aria-label="Search results">
+    <section className="results-panel" role="listbox" aria-label={t("search_results_aria")}>
       {searchResults.map((cli, index) => (
         <ResultRow
           key={cli.slug}
@@ -78,7 +78,7 @@ function ResultRow({ cli, index, isActive, onSelect }: ResultRowProps) {
             className="result-github-link"
             onClick={(event) => event.stopPropagation()}
           >
-            GitHub: {githubLabel}
+            {t("card_source_prefix")}: {githubLabel}
           </a>
         ) : null}
       </span>
