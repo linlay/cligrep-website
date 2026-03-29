@@ -16,6 +16,7 @@ export interface User {
   avatarUrl?: string;
   authProvider?: string;
   ip: string;
+  roles?: string[];
   [key: string]: unknown;
 }
 
@@ -44,11 +45,16 @@ export interface CliRecord {
   giteeUrl?: string;
   license?: string;
   createdAt?: string;
+  updatedAt?: string;
+  publishedAt?: string | null;
   originalCommand?: string;
   rawCommand?: string;
   executable?: boolean;
   exampleLine?: string;
   promptCommands?: unknown;
+  ownerUserId?: number | string | null;
+  status?: string;
+  executionTemplate?: string;
   [key: string]: unknown;
 }
 
@@ -75,10 +81,15 @@ export interface CliView {
   giteeUrl: string;
   license: string;
   createdAt: string;
+  updatedAt: string;
+  publishedAt?: string | null;
   originalCommand: string;
   executable: boolean;
   exampleLine: string;
   promptCommands: string[];
+  ownerUserId?: number | string | null;
+  status: string;
+  executionTemplate: string;
 }
 
 export interface CliComment {
@@ -89,6 +100,7 @@ export interface CliComment {
 }
 
 export interface CliReleaseAsset {
+  id?: number | string;
   fileName?: string;
   downloadUrl?: string;
   os?: string;
@@ -96,10 +108,13 @@ export interface CliReleaseAsset {
   packageKind?: string;
   checksumUrl?: string;
   sizeBytes?: number | string | null;
+  storageKind?: string;
+  storagePath?: string;
   [key: string]: unknown;
 }
 
 export interface CliRelease {
+  id?: number | string;
   version?: string;
   publishedAt?: string;
   isCurrent?: boolean;
@@ -138,6 +153,31 @@ export interface BuiltinExecResponse {
   hints?: string[];
   sessionState?: "home" | "search-results" | "execution" | string;
   searchResults?: CliRecord[];
+}
+
+export interface ExecutionTemplate {
+  id: string;
+  label: string;
+  description: string;
+  environmentKind: EnvironmentKind;
+  executable: boolean;
+}
+
+export interface AdminMe {
+  user: User;
+  canAccessAdmin: boolean;
+  isPlatformAdmin: boolean;
+  executionTemplates: ExecutionTemplate[];
+}
+
+export interface AdminCliDetailPayload {
+  cli: CliRecord;
+  releases: CliRelease[];
+  executionTemplates: ExecutionTemplate[];
+}
+
+export interface AdminAssetUploadResult {
+  asset: CliReleaseAsset;
 }
 
 export interface TrendingResponse {

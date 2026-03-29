@@ -60,10 +60,15 @@ export function normalizeCliView(cli: CliRecord | CliView | null | undefined, op
     giteeUrl: pickString(cli.giteeUrl, "") ?? "",
     license: pickString(cli.license, "N/A") ?? "N/A",
     createdAt: pickString(cli.createdAt, "") ?? "",
+    updatedAt: pickString(cli.updatedAt, cli.createdAt, "") ?? "",
+    publishedAt: pickString(cli.publishedAt, "") ?? undefined,
     originalCommand,
     executable: cli.executable !== false,
     exampleLine: pickString(cli.exampleLine, "") ?? "",
     promptCommands,
+    ownerUserId: cli.ownerUserId ?? undefined,
+    status: pickString(cli.status, "published") ?? "published",
+    executionTemplate: pickString(cli.executionTemplate, "") ?? "",
   };
 }
 

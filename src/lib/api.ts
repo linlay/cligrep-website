@@ -16,7 +16,7 @@ function resolveRequestPath(path: string): string {
 
 export async function request<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers ?? undefined);
-  if (!headers.has("Content-Type")) {
+  if (!(options.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
   headers.set("X-CLIGREP-Locale", i18n.language || "en");

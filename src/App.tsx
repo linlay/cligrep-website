@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import AuthOverlay from "./components/AuthOverlay";
+import AdminConsole from "./components/AdminConsole";
 import CommandConsole from "./components/CommandConsole";
 import CommandPalette from "./components/CommandPalette";
 import CommentsPanel from "./components/CommentsPanel";
@@ -19,6 +20,9 @@ import {
 
 function App() {
   const { t, i18n } = useTranslation();
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/admin")) {
+    return <AdminConsole />;
+  }
   const app = useAppShell({ t, i18n });
   useSeo({
     language: i18n.language,
