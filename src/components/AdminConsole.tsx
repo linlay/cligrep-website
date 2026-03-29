@@ -61,6 +61,18 @@ function emptyCliForm(): AdminCliForm {
   };
 }
 
+function asReleaseList(value: unknown): CliRelease[] {
+  return Array.isArray(value) ? (value as CliRelease[]) : [];
+}
+
+function asExecutionTemplateList(value: unknown): ExecutionTemplate[] {
+  return Array.isArray(value) ? (value as ExecutionTemplate[]) : [];
+}
+
+function asAssetList(value: unknown): CliReleaseAsset[] {
+  return Array.isArray(value) ? (value as CliReleaseAsset[]) : [];
+}
+
 function emptyReleaseForm(): AdminReleaseForm {
   return {
     version: "",
@@ -188,9 +200,15 @@ export default function AdminConsole() {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const executionTemplates = adminMe?.executionTemplates ?? detail?.executionTemplates ?? [];
+  const releaseList = asReleaseList(detail?.releases);
+  const adminExecutionTemplates = asExecutionTemplateList(adminMe?.executionTemplates);
+  const detailExecutionTemplates = asExecutionTemplateList(detail?.executionTemplates);
+  const executionTemplates =
+    adminExecutionTemplates.length > 0
+      ? adminExecutionTemplates
+      : detailExecutionTemplates;
   const selectedRelease =
-    detail?.releases.find((release) => release.version === selectedReleaseVersion) ??
+    releaseList.find((release) => release.version === selectedReleaseVersion) ??
     null;
   const locale = navigator.language || "en";
 
@@ -261,9 +279,10 @@ export default function AdminConsole() {
       setDetail(payload);
       setEditingNewCli(false);
       setCliForm(toCliForm(payload.cli));
+      const releases = asReleaseList(payload.releases);
       const currentRelease =
-        payload.releases.find((release) => Boolean(release.isCurrent)) ??
-        payload.releases[0] ??
+        releases.find((release) => Boolean(release.isCurrent)) ??
+        releases[0] ??
         null;
       setSelectedReleaseVersion(typeof currentRelease?.version === "string" ? currentRelease.version : "");
       setReleaseForm(toReleaseForm(currentRelease));
@@ -764,7 +783,7 @@ export default function AdminConsole() {
             </div>
             <div>
               <span>Releases</span>
-              <strong>{detail?.releases.length ?? 0}</strong>
+                <strong>{releaseList.length}</strong>
             </div>
           </div>
 
@@ -977,7 +996,7 @@ export default function AdminConsole() {
                 </div>
 
                 <div className="admin-release-list">
-                  {detail?.releases.map((release) => (
+                  {releaseList.map((release) => (
                     <button
                       key={release.version}
                       type="button"
@@ -998,7 +1017,7 @@ export default function AdminConsole() {
                       {release.isCurrent ? <span className="admin-current-pill">current</span> : null}
                     </button>
                   ))}
-                  {!detail?.releases.length ? (
+                  {!releaseList.length ? (
                     <div className="admin-empty-state">
                       <p>No releases yet.</p>
                       <span>Create a version before uploading packages.</span>
@@ -1160,7 +1179,7 @@ export default function AdminConsole() {
                     </form>
 
                     <div className="admin-asset-list">
-                      {selectedRelease.assets?.map((asset) => (
+                      {asAssetList(selectedRelease.assets).map((asset) => (
                         <article key={String(asset.id ?? asset.fileName)} className="admin-asset-card">
                           <div>
                             <strong>{asset.fileName || "Unnamed asset"}</strong>
@@ -1181,7 +1200,7 @@ export default function AdminConsole() {
                           </div>
                         </article>
                       ))}
-                      {!selectedRelease.assets?.length ? (
+                      {!asAssetList(selectedRelease.assets).length ? (
                         <div className="admin-empty-state">
                           <p>No assets on this release yet.</p>
                           <span>Upload installers, tarballs, or platform-specific bundles here.</span>

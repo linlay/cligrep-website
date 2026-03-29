@@ -165,6 +165,8 @@
   "toolbar_session": "session",
   "session_menu_guest": "guest",
   "session_menu_default": "session",
+  "session_action_profile": "profile",
+  "session_action_admin": "admin",
   "session_action_login": "login",
   "session_action_logout": "logout",
   "builtin_default_summary": "Search the CLI GREP registry from the website command line.",

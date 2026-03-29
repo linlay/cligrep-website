@@ -172,6 +172,10 @@ button {
   transition: border-color 140ms ease, transform 140ms ease, background 140ms ease;
 }
 
+.toolbar-menu {
+  position: relative;
+}
+
 .flat-action-button {
   padding: 10px 0;
   border-radius: 999px;
@@ -179,22 +183,104 @@ button {
   background: transparent;
 }
 
-.bracket-action-button {
+.bracket-action-button,
+.toolbar-trigger {
   padding: 10px 14px;
   border-radius: 14px;
   font-family: var(--font-display);
 }
 
-.bracket-action-button.accent {
+.bracket-action-button.accent,
+.toolbar-trigger-session {
   color: color-mix(in srgb, var(--builtin) 70%, var(--text));
   border-color: color-mix(in srgb, var(--builtin) 30%, var(--line));
 }
 
 .flat-action-button:hover,
-.bracket-action-button:hover {
+.bracket-action-button:hover,
+.toolbar-trigger:hover,
+.toolbar-trigger[aria-expanded="true"] {
   transform: translateY(-1px);
   border-color: var(--cli);
   background: color-mix(in srgb, var(--panel) 96%, transparent);
+}
+
+.toolbar-trigger {
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel-strong) 94%, transparent);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  transition: border-color 140ms ease, transform 140ms ease, background 140ms ease;
+}
+
+.toolbar-trigger-label {
+  color: color-mix(in srgb, var(--text) 72%, transparent);
+  text-transform: lowercase;
+}
+
+.toolbar-trigger-value {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 220px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 95%, transparent);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+  z-index: 6;
+}
+
+.toolbar-dropdown-title {
+  margin-bottom: 10px;
+  font-family: var(--font-display);
+  color: color-mix(in srgb, var(--text) 70%, transparent);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.82rem;
+}
+
+.toolbar-dropdown-list {
+  display: grid;
+  gap: 6px;
+}
+
+.toolbar-option {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  text-align: left;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.toolbar-option:hover,
+.toolbar-option.active {
+  border-color: color-mix(in srgb, var(--builtin) 24%, var(--line));
+  background: color-mix(in srgb, var(--panel-strong) 92%, transparent);
+  transform: translateY(-1px);
+}
+
+.toolbar-option-check {
+  color: color-mix(in srgb, var(--builtin) 78%, var(--text));
+  font-family: var(--font-display);
 }
 
 .flat-action-button.danger {

@@ -39,6 +39,7 @@ import {
   type TranslateFn,
 } from "../lib/appShell";
 import type {
+  AdminMe,
   AppMode,
   BuiltinExecResponse,
   CliDetailPayload,
@@ -50,6 +51,7 @@ import type {
   InlineMode,
   Language,
   ThemeOption,
+  ToolbarMenuItem,
   TrendingResponse,
 } from "../types";
 
@@ -112,6 +114,7 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
   const [inlineValue, setInlineValue] = useState("");
   const [infoPanel, setInfoPanel] = useState<InfoPanel | null>(null);
   const [lastSearchQuery, setLastSearchQuery] = useState("");
+  const [adminAccess, setAdminAccess] = useState<AdminMe | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const inlineRef = useRef<HTMLInputElement>(null);
@@ -153,6 +156,35 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
     setStatusMessage,
     setErrorMessage,
   });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAdminAccess() {
+      if (isAnonymous) {
+        if (!cancelled) {
+          setAdminAccess(null);
+        }
+        return;
+      }
+
+      try {
+        const payload = await request<AdminMe>("/api/v1/admin/me");
+        if (!cancelled) {
+          setAdminAccess(payload);
+        }
+      } catch {
+        if (!cancelled) {
+          setAdminAccess(null);
+        }
+      }
+    }
+
+    void loadAdminAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAnonymous, activeUser.id]);
 
   function syncCommandParam(command: string | null) {
     const params = new URLSearchParams(window.location.search);
@@ -933,6 +965,50 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
         }
       : null;
 
+  const sessionMenuItems: ToolbarMenuItem[] = useMemo(() => {
+    if (isAnonymous) {
+      return [
+        {
+          id: "login",
+          label: t("session_action_login"),
+          role: "menuitem",
+          onSelect: openSessionOverlay,
+        },
+      ];
+    }
+
+    const items: ToolbarMenuItem[] = [
+      {
+        id: "profile",
+        label: t("session_action_profile"),
+        role: "menuitem",
+        onSelect: openSessionOverlay,
+      },
+    ];
+
+    if (adminAccess?.canAccessAdmin) {
+      items.push({
+        id: "admin",
+        label: t("session_action_admin"),
+        role: "menuitem",
+        onSelect: () => {
+          window.location.assign("/admin");
+        },
+      });
+    }
+
+    items.push({
+      id: "logout",
+      label: t("session_action_logout"),
+      role: "menuitem",
+      onSelect: () => {
+        void handleHeaderLogout();
+      },
+    });
+
+    return items;
+  }, [adminAccess?.canAccessAdmin, handleHeaderLogout, isAnonymous, openSessionOverlay, t]);
+
   return {
     mode,
     homeFeed,
@@ -949,13 +1025,13 @@ export function useAppShell({ t, i18n }: UseAppShellOptions) {
       searchLabel: t("header_search"),
       statusLabel: t("header_status"),
       docsLabel: t("header_docs"),
-      loginLabel: t("session_action_login"),
+      sessionMenuLabel: t("toolbar_session"),
+      sessionMenuItems,
       onSearchHome: () => void resetToHome(),
       onOpenStatusPanel: () => void openStatusPanel(),
       onOpenDocs: openDocsPanel,
       onCycleTheme: cycleThemeFromHeader,
       onToggleLanguage: toggleLanguage,
-      onOpenSession: openSessionOverlay,
     },
     authOverlayProps,
     commandConsoleProps: {

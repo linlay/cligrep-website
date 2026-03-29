@@ -1,4 +1,5 @@
-import type { ResolvedTheme } from "../types";
+import ToolbarMenu from "./ToolbarMenu";
+import type { ResolvedTheme, ToolbarMenuItem } from "../types";
 
 interface SiteHeaderProps {
   brandText: string;
@@ -11,13 +12,13 @@ interface SiteHeaderProps {
   searchLabel: string;
   statusLabel: string;
   docsLabel: string;
-  loginLabel: string;
+  sessionMenuLabel: string;
+  sessionMenuItems: ToolbarMenuItem[];
   onSearchHome: () => void;
   onOpenStatusPanel: () => void;
   onOpenDocs: () => void;
   onCycleTheme: () => void;
   onToggleLanguage: () => void;
-  onOpenSession: () => void;
 }
 
 export default function SiteHeader({
@@ -31,13 +32,13 @@ export default function SiteHeader({
   searchLabel,
   statusLabel,
   docsLabel,
-  loginLabel,
+  sessionMenuLabel,
+  sessionMenuItems,
   onSearchHome,
   onOpenStatusPanel,
   onOpenDocs,
   onCycleTheme,
   onToggleLanguage,
-  onOpenSession,
 }: SiteHeaderProps) {
   return (
     <header className="site-header">
@@ -98,13 +99,12 @@ export default function SiteHeader({
         >
           [{languageLabel}]
         </button>
-        <button
-          type="button"
-          className="bracket-action-button accent"
-          onClick={onOpenSession}
-        >
-          [$ {isAnonymous ? loginLabel : sessionLabel}]
-        </button>
+        <ToolbarMenu
+          label={sessionMenuLabel}
+          value={isAnonymous ? sessionMenuLabel : sessionLabel}
+          items={sessionMenuItems}
+          tone="session"
+        />
       </div>
     </header>
   );
