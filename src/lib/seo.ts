@@ -88,7 +88,7 @@ export function buildStructuredData(
             name: cli.author,
           }
         : undefined,
-      sameAs: cli.githubUrl || undefined,
+      sameAs: cli.officialUrl || undefined,
     },
   }));
 

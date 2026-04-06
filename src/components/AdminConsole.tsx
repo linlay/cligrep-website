@@ -20,7 +20,7 @@ interface AdminCliForm {
   versionText: string;
   exampleLine: string;
   author: string;
-  githubUrl: string;
+  officialUrl: string;
   giteeUrl: string;
   license: string;
   originalCommand: string;
@@ -52,7 +52,7 @@ function emptyCliForm(): AdminCliForm {
     versionText: "",
     exampleLine: "",
     author: "",
-    githubUrl: "",
+    officialUrl: "",
     giteeUrl: "",
     license: "",
     originalCommand: "",
@@ -118,7 +118,7 @@ function toCliForm(cli: CliRecord | null | undefined): AdminCliForm {
     versionText: typeof cli.versionText === "string" ? cli.versionText : "",
     exampleLine: typeof cli.exampleLine === "string" ? cli.exampleLine : "",
     author: typeof cli.author === "string" ? cli.author : "",
-    githubUrl: typeof cli.githubUrl === "string" ? cli.githubUrl : "",
+    officialUrl: typeof cli.officialUrl === "string" ? cli.officialUrl : "",
     giteeUrl: typeof cli.giteeUrl === "string" ? cli.giteeUrl : "",
     license: typeof cli.license === "string" ? cli.license : "",
     originalCommand:
@@ -931,16 +931,16 @@ export default function AdminConsole() {
                   />
                 </label>
                 <label>
-                  GitHub URL
+                  Official URL
                   <input
-                    value={cliForm.githubUrl}
+                    value={cliForm.officialUrl}
                     onChange={(event) =>
                       setCliForm((current) => ({
                         ...current,
-                        githubUrl: event.target.value,
+                        officialUrl: event.target.value,
                       }))
                     }
-                    placeholder="https://github.com/example/project"
+                    placeholder="https://example.com/project"
                   />
                 </label>
                 <label>

@@ -1,6 +1,6 @@
 import { type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { formatCliDate } from "../lib/cliView";
+import { formatCliDate, formatOfficialLinkLabel } from "../lib/cliView";
 import type { CliView, HomeFeed, HomeFeedSort } from "../types";
 
 const SORTS: HomeFeedSort[] = ["favorites", "newest", "runs"];
@@ -86,8 +86,8 @@ function CliCard({ cli, locale, onSelect }: CliCardProps) {
 	const identitySeed = (cli.author || cli.command).trim();
 	const avatarLabel = identitySeed.slice(0, 2).toUpperCase();
 	const authorLabel = cli.author || cli.command;
-	const githubLabel = cli.githubUrl
-		? cli.githubUrl.replace(/^https?:\/\/(www\.)?github\.com\//i, "")
+	const officialLabel = cli.officialUrl
+		? formatOfficialLinkLabel(cli.officialUrl)
 		: t("meta_na");
 
 	function handleCardKeyDown(event: KeyboardEvent<HTMLElement>) {
@@ -151,20 +151,20 @@ function CliCard({ cli, locale, onSelect }: CliCardProps) {
 					</div>
 					<div className="cli-card-identity-copy">
 						{/* <span className="cli-card-author">{authorLabel}</span> */}
-						{cli.githubUrl ? (
+						{cli.officialUrl ? (
 							<a
-								href={cli.githubUrl}
+								href={cli.officialUrl}
 								className="cli-card-github-link"
 								target="_blank"
 								rel="noreferrer"
 								onClick={(event) => event.stopPropagation()}
 							>
 								<span style={{ color: "#22c55e" }}>{t("card_source_prefix")} </span>
-								{githubLabel}
+								{officialLabel}
 							</a>
 						) : (
 							<span className="cli-card-github-link cli-card-github-empty">
-								{githubLabel}
+								{officialLabel}
 							</span>
 						)}
 					</div>

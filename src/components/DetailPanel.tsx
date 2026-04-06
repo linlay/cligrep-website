@@ -43,7 +43,7 @@ export default function DetailPanel({
 
   const promptCommands = (detail.examples ?? cli.promptCommands).slice(0, 6);
   const repoLinks = [
-    cli.githubUrl ? { label: "GitHub", href: cli.githubUrl } : null,
+    cli.officialUrl ? { label: t("link_official"), href: cli.officialUrl } : null,
     cli.giteeUrl ? { label: "Gitee", href: cli.giteeUrl } : null,
   ].filter((link): link is { label: string; href: string } => Boolean(link));
 
@@ -167,9 +167,9 @@ export default function DetailPanel({
         </button>
         <button type="button" onClick={onComment}>{t("action_comment")}</button>
         <button type="button" onClick={onFillHelp}>{t("action_help")}</button>
-        {cli.githubUrl ? (
-          <a href={cli.githubUrl} target="_blank" rel="noreferrer" className="detail-action-link">
-            {t("action_open_github")}
+        {cli.officialUrl ? (
+          <a href={cli.officialUrl} target="_blank" rel="noreferrer" className="detail-action-link">
+            {t("action_open_official")}
           </a>
         ) : null}
       </div>

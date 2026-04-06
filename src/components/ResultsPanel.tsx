@@ -1,6 +1,6 @@
 import { type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { sourceTypeLabel } from "../lib/cliView";
+import { formatOfficialLinkLabel, sourceTypeLabel } from "../lib/cliView";
 import type { CliView } from "../types";
 
 interface ResultsPanelProps {
@@ -44,8 +44,8 @@ export default function ResultsPanel({ searchResults, selectedResultIndex, onSel
 
 function ResultRow({ cli, index, isActive, onSelect }: ResultRowProps) {
   const { t } = useTranslation();
-  const githubLabel = cli.githubUrl
-    ? cli.githubUrl.replace(/^https?:\/\/(www\.)?github\.com\//i, "")
+  const officialLabel = cli.officialUrl
+    ? formatOfficialLinkLabel(cli.officialUrl)
     : "";
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
@@ -70,15 +70,15 @@ function ResultRow({ cli, index, isActive, onSelect }: ResultRowProps) {
       <span className="result-summary">{cli.description}</span>
       <span className="result-stats">
         <span>★ {cli.favoriteCount} / ▶ {cli.runCount} / {sourceTypeLabel(cli.sourceType, t)}</span>
-        {cli.githubUrl ? (
+        {cli.officialUrl ? (
           <a
-            href={cli.githubUrl}
+            href={cli.officialUrl}
             target="_blank"
             rel="noreferrer"
             className="result-github-link"
             onClick={(event) => event.stopPropagation()}
           >
-            {t("card_source_prefix")}: {githubLabel}
+            {t("card_source_prefix")}: {officialLabel}
           </a>
         ) : null}
       </span>

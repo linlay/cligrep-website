@@ -56,7 +56,7 @@ export function normalizeCliView(cli: CliRecord | CliView | null | undefined, op
     environmentKind: normalizeEnvironmentKind(cli.environmentKind ?? cli.environment, cli.type),
     sourceType: pickString(cli.sourceType, "unknown") ?? "unknown",
     author: pickString(cli.author, "") ?? "",
-    githubUrl: pickString(cli.githubUrl, "") ?? "",
+    officialUrl: pickString(cli.officialUrl, "") ?? "",
     giteeUrl: pickString(cli.giteeUrl, "") ?? "",
     license: pickString(cli.license, "N/A") ?? "N/A",
     createdAt: pickString(cli.createdAt, "") ?? "",
@@ -70,6 +70,19 @@ export function normalizeCliView(cli: CliRecord | CliView | null | undefined, op
     status: pickString(cli.status, "published") ?? "published",
     executionTemplate: pickString(cli.executionTemplate, "") ?? "",
   };
+}
+
+export function formatOfficialLinkLabel(url: string): string {
+  if (!url) return "";
+
+  try {
+    const parsed = new URL(url);
+    const host = parsed.host.replace(/^www\./i, "");
+    const path = parsed.pathname.replace(/\/+$/, "");
+    return path && path !== "/" ? `${host}${path}` : host;
+  } catch {
+    return url.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  }
 }
 
 export function formatCliDate(value: string, locale: string): string | null {

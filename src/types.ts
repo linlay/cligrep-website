@@ -41,7 +41,7 @@ export interface CliRecord {
   environment?: string;
   sourceType?: string;
   author?: string;
-  githubUrl?: string;
+  officialUrl?: string;
   giteeUrl?: string;
   license?: string;
   createdAt?: string;
@@ -77,7 +77,7 @@ export interface CliView {
   environmentKind: EnvironmentKind;
   sourceType: string;
   author: string;
-  githubUrl: string;
+  officialUrl: string;
   giteeUrl: string;
   license: string;
   createdAt: string;
