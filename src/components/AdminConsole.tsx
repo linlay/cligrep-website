@@ -550,7 +550,7 @@ export default function AdminConsole() {
       <div className="admin-shell">
         <section className="admin-auth-card">
           <p className="admin-eyebrow">CLI GREP ADMIN</p>
-          <h1>Sign in to manage your CLI catalog</h1>
+          <h1>Sign in to manage the CLI catalog.</h1>
           <p className="admin-subcopy">
             Use Google for the fastest access, or sign in with a local account to
             continue editing your commands, versions, and release artifacts.
@@ -672,7 +672,7 @@ export default function AdminConsole() {
       <header className="admin-header">
         <div>
           <p className="admin-eyebrow">CLI GREP ADMIN</p>
-          <h1>Release workshop for commands, versions, and artifacts.</h1>
+          <h1>Catalog, releases, artifacts.</h1>
         </div>
         <div className="admin-header-actions">
           <div className="admin-user-pill">
@@ -739,7 +739,7 @@ export default function AdminConsole() {
           <div className="admin-hero-panel">
             <div>
               <p className="admin-panel-label">Editor</p>
-              <h2>{editingNewCli ? "Create a new CLI record" : cliForm.displayName || selectedSlug || "Select a CLI"}</h2>
+              <h2>{editingNewCli ? "Create CLI record" : cliForm.displayName || selectedSlug || "Select a CLI"}</h2>
             </div>
             {!editingNewCli && detail?.cli ? (
               <div className="admin-hero-actions">
@@ -792,7 +792,7 @@ export default function AdminConsole() {
               <div className="admin-panel-header">
                 <div>
                   <p className="admin-panel-label">CLI basics</p>
-                  <h3>Metadata and execution posture</h3>
+                  <h3>Metadata and execution</h3>
                 </div>
               </div>
 
@@ -1110,7 +1110,7 @@ export default function AdminConsole() {
                 <div className="admin-panel-header">
                   <div>
                     <p className="admin-panel-label">Artifacts</p>
-                    <h3>Upload and prune release packages</h3>
+                    <h3>Release packages</h3>
                   </div>
                 </div>
 
