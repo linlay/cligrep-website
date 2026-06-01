@@ -174,6 +174,25 @@ export interface AdminUsersPayload {
   items: User[];
 }
 
+export interface AdminApiKey {
+  id: number | string;
+  name: string;
+  keyPrefix: string;
+  createdByUserId: number | string;
+  createdAt: string;
+  lastUsedAt?: string | null;
+  revokedAt?: string | null;
+}
+
+export interface AdminApiKeysPayload {
+  items: AdminApiKey[];
+}
+
+export interface AdminApiKeyCreateResult {
+  apiKey: AdminApiKey;
+  secret: string;
+}
+
 export interface AdminCliDetailPayload {
   cli: CliRecord;
   releases: CliRelease[];

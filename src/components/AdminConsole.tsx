@@ -3,6 +3,9 @@ import { request } from "../lib/api";
 import { formatCliDateTime } from "../lib/cliView";
 import { useAuth } from "../hooks/useAuth";
 import type {
+  AdminApiKey,
+  AdminApiKeyCreateResult,
+  AdminApiKeysPayload,
   AdminAssetUploadResult,
   AdminCliDetailPayload,
   AdminMe,
@@ -183,6 +186,7 @@ export default function AdminConsole() {
   } = useAuth();
   const [adminMe, setAdminMe] = useState<AdminMe | null>(null);
   const [adminUsers, setAdminUsers] = useState<User[]>([]);
+  const [adminApiKeys, setAdminApiKeys] = useState<AdminApiKey[]>([]);
   const [items, setItems] = useState<CliRecord[]>([]);
   const [detail, setDetail] = useState<AdminCliDetailPayload | null>(null);
   const [selectedSlug, setSelectedSlug] = useState<string>(() => readSelectedSlug());
@@ -202,6 +206,8 @@ export default function AdminConsole() {
     displayName: "",
   });
   const [newAdminIdentifier, setNewAdminIdentifier] = useState("");
+  const [newApiKeyName, setNewApiKeyName] = useState("");
+  const [createdApiKeySecret, setCreatedApiKeySecret] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const releaseList = asReleaseList(detail?.releases);
@@ -251,9 +257,11 @@ export default function AdminConsole() {
   useEffect(() => {
     if (!adminMe?.isPlatformAdmin) {
       setAdminUsers([]);
+      setAdminApiKeys([]);
       return;
     }
     void loadAdminUsers();
+    void loadAdminApiKeys();
   }, [adminMe?.isPlatformAdmin]);
 
   useEffect(() => {
@@ -289,6 +297,15 @@ export default function AdminConsole() {
     try {
       const payload = await request<AdminUsersPayload>("/api/v1/admin/users");
       setAdminUsers(payload.items ?? []);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : String(loadError));
+    }
+  }
+
+  async function loadAdminApiKeys() {
+    try {
+      const payload = await request<AdminApiKeysPayload>("/api/v1/admin/api-keys");
+      setAdminApiKeys(payload.items ?? []);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     }
@@ -560,6 +577,47 @@ export default function AdminConsole() {
       await loadAdminUsers();
     } catch (adminError) {
       setError(adminError instanceof Error ? adminError.message : String(adminError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCreateApiKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = newApiKeyName.trim();
+    if (!name) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    setCreatedApiKeySecret("");
+    try {
+      const result = await request<AdminApiKeyCreateResult>("/api/v1/admin/api-keys", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      setNewApiKeyName("");
+      setCreatedApiKeySecret(result.secret);
+      setMessage("API key created.");
+      await loadAdminApiKeys();
+    } catch (apiKeyError) {
+      setError(apiKeyError instanceof Error ? apiKeyError.message : String(apiKeyError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRevokeApiKey(apiKey: AdminApiKey) {
+    if (!apiKey.id || apiKey.revokedAt) return;
+    if (!window.confirm(`Revoke API key "${apiKey.name}"?`)) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await request(`/api/v1/admin/api-keys/${apiKey.id}`, { method: "DELETE" });
+      setMessage("API key revoked.");
+      await loadAdminApiKeys();
+    } catch (apiKeyError) {
+      setError(apiKeyError instanceof Error ? apiKeyError.message : String(apiKeyError));
     } finally {
       setBusy(false);
     }
@@ -843,6 +901,70 @@ export default function AdminConsole() {
                 {!adminUsers.length ? (
                   <div className="admin-empty-state">
                     <p>No admins loaded.</p>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+
+          {adminMe?.isPlatformAdmin ? (
+            <section className="admin-user-management">
+              <div className="admin-panel-header">
+                <div>
+                  <p className="admin-panel-label">API Keys</p>
+                  <h3>Automation</h3>
+                </div>
+              </div>
+              <form className="admin-inline-form" onSubmit={handleCreateApiKey}>
+                <label className="admin-field-span-2">
+                  Key name
+                  <input
+                    value={newApiKeyName}
+                    onChange={(event) => setNewApiKeyName(event.target.value)}
+                    placeholder="release bot"
+                  />
+                </label>
+                <div className="admin-form-actions admin-field-span-2">
+                  <button type="submit" className="admin-primary-button" disabled={busy || !newApiKeyName.trim()}>
+                    Issue key
+                  </button>
+                </div>
+              </form>
+              {createdApiKeySecret ? (
+                <div className="admin-secret-box">
+                  <span>New key</span>
+                  <code>{createdApiKeySecret}</code>
+                </div>
+              ) : null}
+              <div className="admin-admin-list">
+                {adminApiKeys.map((apiKey) => {
+                  const revoked = Boolean(apiKey.revokedAt);
+                  return (
+                    <article key={String(apiKey.id)} className="admin-admin-card">
+                      <div>
+                        <strong>{apiKey.name}</strong>
+                        <p>
+                          {apiKey.keyPrefix}... · {revoked ? "revoked" : "active"}
+                        </p>
+                        <p>Created {formatCliDateTime(apiKey.createdAt, locale)}</p>
+                        {apiKey.lastUsedAt ? (
+                          <p>Last used {formatCliDateTime(apiKey.lastUsedAt, locale)}</p>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        className="admin-danger-button"
+                        disabled={busy || revoked}
+                        onClick={() => void handleRevokeApiKey(apiKey)}
+                      >
+                        Revoke
+                      </button>
+                    </article>
+                  );
+                })}
+                {!adminApiKeys.length ? (
+                  <div className="admin-empty-state">
+                    <p>No API keys issued.</p>
                   </div>
                 ) : null}
               </div>

@@ -182,9 +182,8 @@
   position: sticky;
   top: 1rem;
   display: grid;
-  grid-template-rows: auto auto minmax(14rem, 1fr) auto;
+  grid-template-rows: auto auto minmax(12rem, 36rem) auto auto;
   min-height: 0;
-  max-height: calc(100vh - 2rem);
 }
 
 .admin-sidebar::before,
@@ -602,6 +601,28 @@
 
 .admin-admin-card p {
   margin: 0.3rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-secret-box {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0.75rem 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(110, 231, 168, 0.34);
+  border-radius: var(--admin-radius);
+  background: rgba(110, 231, 168, 0.08);
+}
+
+.admin-secret-box span {
+  color: var(--admin-green);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-secret-box code {
+  color: var(--admin-ink);
   overflow-wrap: anywhere;
 }
 
