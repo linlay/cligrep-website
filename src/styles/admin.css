@@ -182,8 +182,9 @@
   position: sticky;
   top: 1rem;
   display: grid;
-  grid-template-rows: auto auto minmax(0, calc(100vh - 10rem));
+  grid-template-rows: auto auto minmax(14rem, 1fr) auto;
   min-height: 0;
+  max-height: calc(100vh - 2rem);
 }
 
 .admin-sidebar::before,
@@ -559,7 +560,8 @@
 }
 
 .admin-release-list,
-.admin-asset-list {
+.admin-asset-list,
+.admin-admin-list {
   display: grid;
   gap: 0.55rem;
 }
@@ -568,7 +570,8 @@
   grid-template-columns: 1fr auto;
 }
 
-.admin-asset-card {
+.admin-asset-card,
+.admin-admin-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -577,6 +580,29 @@
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius);
   background: var(--admin-surface-2);
+}
+
+.admin-user-management {
+  border-top: 1px solid var(--admin-border);
+  background: rgba(8, 11, 10, 0.28);
+}
+
+.admin-user-management .admin-inline-form,
+.admin-user-management .admin-admin-list {
+  padding: 0 0.75rem 0.75rem;
+}
+
+.admin-admin-card {
+  align-items: flex-start;
+}
+
+.admin-admin-card div {
+  min-width: 0;
+}
+
+.admin-admin-card p {
+  margin: 0.3rem 0 0;
+  overflow-wrap: anywhere;
 }
 
 .admin-asset-card span {

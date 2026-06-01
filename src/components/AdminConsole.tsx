@@ -6,10 +6,12 @@ import type {
   AdminAssetUploadResult,
   AdminCliDetailPayload,
   AdminMe,
+  AdminUsersPayload,
   CliRecord,
   CliRelease,
   CliReleaseAsset,
   ExecutionTemplate,
+  User,
 } from "../types";
 
 interface AdminCliForm {
@@ -180,6 +182,7 @@ export default function AdminConsole() {
     registerLocal,
   } = useAuth();
   const [adminMe, setAdminMe] = useState<AdminMe | null>(null);
+  const [adminUsers, setAdminUsers] = useState<User[]>([]);
   const [items, setItems] = useState<CliRecord[]>([]);
   const [detail, setDetail] = useState<AdminCliDetailPayload | null>(null);
   const [selectedSlug, setSelectedSlug] = useState<string>(() => readSelectedSlug());
@@ -198,6 +201,7 @@ export default function AdminConsole() {
     password: "",
     displayName: "",
   });
+  const [newAdminIdentifier, setNewAdminIdentifier] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const releaseList = asReleaseList(detail?.releases);
@@ -245,6 +249,14 @@ export default function AdminConsole() {
   }, [adminMe?.canAccessAdmin]);
 
   useEffect(() => {
+    if (!adminMe?.isPlatformAdmin) {
+      setAdminUsers([]);
+      return;
+    }
+    void loadAdminUsers();
+  }, [adminMe?.isPlatformAdmin]);
+
+  useEffect(() => {
     if (!adminMe?.canAccessAdmin) return;
     if (!selectedSlug) {
       setDetail(null);
@@ -268,6 +280,15 @@ export default function AdminConsole() {
           writeSelectedSlug(firstSlug);
         }
       }
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : String(loadError));
+    }
+  }
+
+  async function loadAdminUsers() {
+    try {
+      const payload = await request<AdminUsersPayload>("/api/v1/admin/users");
+      setAdminUsers(payload.items ?? []);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     }
@@ -503,6 +524,47 @@ export default function AdminConsole() {
     }
   }
 
+  async function handleAddAdmin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const identifier = newAdminIdentifier.trim();
+    if (!identifier) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await request<{ user: User }>("/api/v1/admin/users", {
+        method: "POST",
+        body: JSON.stringify({ identifier }),
+      });
+      setNewAdminIdentifier("");
+      setMessage("Admin added.");
+      await loadAdminUsers();
+    } catch (adminError) {
+      setError(adminError instanceof Error ? adminError.message : String(adminError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemoveAdmin(adminUser: User) {
+    const userID = adminUser.id;
+    if (!userID || String(userID) === String(activeUser.id)) return;
+    const label = adminUser.email || adminUser.username || String(userID);
+    if (!window.confirm(`Remove admin access for "${label}"?`)) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await request(`/api/v1/admin/users/${userID}`, { method: "DELETE" });
+      setMessage("Admin removed.");
+      await loadAdminUsers();
+    } catch (adminError) {
+      setError(adminError instanceof Error ? adminError.message : String(adminError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -733,6 +795,59 @@ export default function AdminConsole() {
               </div>
             ) : null}
           </div>
+
+          {adminMe?.isPlatformAdmin ? (
+            <section className="admin-user-management">
+              <div className="admin-panel-header">
+                <div>
+                  <p className="admin-panel-label">Admins</p>
+                  <h3>Access</h3>
+                </div>
+              </div>
+              <form className="admin-inline-form" onSubmit={handleAddAdmin}>
+                <label className="admin-field-span-2">
+                  Username or email
+                  <input
+                    value={newAdminIdentifier}
+                    onChange={(event) => setNewAdminIdentifier(event.target.value)}
+                    placeholder="localadmin or admin@example.com"
+                  />
+                </label>
+                <div className="admin-form-actions admin-field-span-2">
+                  <button type="submit" className="admin-primary-button" disabled={busy || !newAdminIdentifier.trim()}>
+                    Add admin
+                  </button>
+                </div>
+              </form>
+              <div className="admin-admin-list">
+                {adminUsers.map((adminUser) => {
+                  const userID = adminUser.id;
+                  const isCurrentUser = String(userID) === String(activeUser.id);
+                  return (
+                    <article key={String(userID ?? adminUser.username)} className="admin-admin-card">
+                      <div>
+                        <strong>{adminUser.displayName || adminUser.username}</strong>
+                        <p>{adminUser.email || adminUser.username}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="admin-danger-button"
+                        disabled={busy || isCurrentUser}
+                        onClick={() => void handleRemoveAdmin(adminUser)}
+                      >
+                        Remove
+                      </button>
+                    </article>
+                  );
+                })}
+                {!adminUsers.length ? (
+                  <div className="admin-empty-state">
+                    <p>No admins loaded.</p>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
         </aside>
 
         <section className="admin-workspace">

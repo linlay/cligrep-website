@@ -170,6 +170,10 @@ export interface AdminMe {
   executionTemplates: ExecutionTemplate[];
 }
 
+export interface AdminUsersPayload {
+  items: User[];
+}
+
 export interface AdminCliDetailPayload {
   cli: CliRecord;
   releases: CliRelease[];
