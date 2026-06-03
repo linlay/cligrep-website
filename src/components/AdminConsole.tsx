@@ -523,13 +523,18 @@ export default function AdminConsole() {
   }
 
   async function handleDeleteAsset(asset: CliReleaseAsset) {
-    if (!selectedSlug || !selectedReleaseVersion || !asset.id) return;
+    if (!selectedSlug || !selectedReleaseVersion) return;
+    const assetId = String(asset.id ?? "").trim();
+    if (!assetId) {
+      setError("Cannot delete asset because the server did not include an asset ID.");
+      return;
+    }
     setBusy(true);
     setError("");
     setMessage("");
     try {
       await request(
-        `/api/v1/admin/clis/${selectedSlug}/releases/${selectedReleaseVersion}/assets/${asset.id}`,
+        `/api/v1/admin/clis/${selectedSlug}/releases/${selectedReleaseVersion}/assets/${encodeURIComponent(assetId)}`,
         { method: "DELETE" },
       );
       setMessage("Asset deleted.");
